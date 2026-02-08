@@ -12,9 +12,9 @@ def main():
     # Initialize the client
     # You can pass api_url and api_key if needed
     client = VNBDigitalClient()
-    
+
     print("=== vnbdigital-client Example ===\n")
-    
+
     # Example 1: Search for items
     print("1. Searching for items...")
     try:
@@ -24,21 +24,23 @@ def main():
             print(f"   {i}. {item.get('title', 'N/A')}")
     except Exception as e:
         print(f"   Error during search: {e}")
-    
+
     print()
-    
+
     # Example 2: List collections
     print("2. Listing collections...")
     try:
         collections = client.list_collections()
         print(f"   Found {len(collections)} collections:")
         for i, collection in enumerate(collections[:3], 1):
-            print(f"   {i}. {collection.get('name', 'N/A')} ({collection.get('itemCount', 0)} items)")
+            print(
+                f"   {i}. {collection.get('name', 'N/A')} ({collection.get('itemCount', 0)} items)"
+            )
     except Exception as e:
         print(f"   Error listing collections: {e}")
-    
+
     print()
-    
+
     # Example 3: Get a specific item (this will likely fail without a valid ID)
     print("3. Getting a specific item...")
     try:
@@ -50,7 +52,7 @@ def main():
             print("   Item not found (expected - example ID)")
     except Exception as e:
         print(f"   Error getting item: {e}")
-    
+
     print("\n=== Example Complete ===")
 
 
