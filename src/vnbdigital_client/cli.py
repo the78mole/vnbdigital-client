@@ -57,7 +57,11 @@ def search(ctx: click.Context, query: str, limit: int, output_format: str) -> No
                     click.echo(f"{i}. {item.get('title', 'N/A')}")
                     click.echo(f"   ID: {item.get('id', 'N/A')}")
                     if item.get("description"):
-                        click.echo(f"   Description: {item.get('description')[:100]}...")
+                        desc = item.get("description")
+                        if len(desc) > 100:
+                            click.echo(f"   Description: {desc[:100]}...")
+                        else:
+                            click.echo(f"   Description: {desc}")
                     click.echo(f"   URL: {item.get('url', 'N/A')}")
                     click.echo()
     except Exception as e:
@@ -174,7 +178,10 @@ def collection(ctx: click.Context, collection_id: str, limit: int, output_format
                 click.echo(f"   ID: {item.get('id', 'N/A')}")
                 if item.get("description"):
                     desc = item.get("description", "")
-                    click.echo(f"   Description: {desc[:100]}...")
+                    if len(desc) > 100:
+                        click.echo(f"   Description: {desc[:100]}...")
+                    else:
+                        click.echo(f"   Description: {desc}")
                 click.echo()
     except Exception as e:
         click.echo(f"Error: {str(e)}", err=True)

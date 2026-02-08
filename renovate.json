@@ -18,6 +18,6 @@
   "labels": ["dependencies"],
   "vulnerabilityAlerts": {
     "labels": ["security"],
-    "automerge": false
+    "autoMerge": false
   }
 }
