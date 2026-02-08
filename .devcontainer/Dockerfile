@@ -1,27 +1,29 @@
 FROM python:3.12-slim
 
-# Install system dependencies and CLI tools
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     git \
     curl \
     build-essential \
     ca-certificates \
-    gh \
+    gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv via pip to avoid external apt repos
-RUN python -m pip install --no-cache-dir uv
+# Add wakemeops apt repo and install tools via wake
+RUN curl -sSL https://raw.githubusercontent.com/upciti/wakemeops/main/assets/install_repository | bash
+
+RUN apt-get update \
+    && apt-get install -y uv \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user 'code'
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+RUN groupadd --gid $USER_GID code \
+    && useradd --uid $USER_UID --gid $USER_GID -m -s /bin/bash code
 
 # Set working directory
 WORKDIR /workspace
 
-# Copy project files
-COPY pyproject.toml README.md ./
-COPY src/ src/
-COPY tests/ tests/
+USER code
 
-# Install Python dependencies
-RUN uv pip install --system -e ".[dev]"
-
-# Set default command
-CMD ["/bin/bash"]

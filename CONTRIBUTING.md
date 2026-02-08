@@ -36,7 +36,8 @@ If you use VS Code, you can use the provided dev container:
 1. Install the "Dev Containers" extension
 2. Open the project in VS Code
 3. Click "Reopen in Container" when prompted
-4. The container will automatically set up the development environment
+4. The workspace is mounted into the container automatically
+5. When you run the first `uv` command, it will create a `.venv` and install dependencies
 
 ## Development Workflow
 
