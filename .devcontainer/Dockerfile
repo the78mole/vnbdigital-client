@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
 RUN curl -sSL https://raw.githubusercontent.com/upciti/wakemeops/main/assets/install_repository | bash
 
 RUN apt-get update \
-    && apt-get install -y uv \
+    && apt-get install -y uv pre-commit \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user 'code'

@@ -1,7 +1,7 @@
 [project]
 name = "vnbdigital-client"
 version = "0.1.0"
-description = "A Python client for accessing vnbdigital.de database with GraphQL abstraction"
+description = "A Python client for accessing vnbdigital.de grid operator data via GraphQL"
 authors = [
     { name = "Daniel Glaser", email = "daniel@example.com" }
 ]
@@ -19,7 +19,6 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "gql[all]>=3.5.0",
     "requests>=2.31.0",
     "click>=8.1.0",
 ]
@@ -31,6 +30,7 @@ dev = [
     "black>=23.0.0",
     "ruff>=0.1.0",
     "mypy>=1.7.0",
+    "pre-commit>=4.0.0",
 ]
 
 [project.scripts]

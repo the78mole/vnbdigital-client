@@ -1,15 +1,16 @@
 # vnbdigital-client
 
-A Python client library and CLI tool for accessing the vnbdigital.de database. This package abstracts all complex GraphQL operations and provides a simple, intuitive API for querying vnbdigital data.
+A Python client library and CLI tool for accessing vnbdigital.de grid operator (Verteilnetzbetreiber) data. This package abstracts the GraphQL API and provides a simple, intuitive interface for looking up operators by their BDEW code.
 
 ## Features
 
-- 🚀 Simple Python API for vnbdigital.de
-- 💻 Command-line interface (CLI) for quick queries
-- 🔒 Support for API authentication
-- 📦 Built with modern Python tooling (uv, pyproject.toml)
-- 🐳 Dev container support for easy development
-- ✅ Comprehensive test coverage
+- Simple Python API for vnbdigital.de grid operator data
+- Command-line interface (CLI) for quick lookups
+- Typed dataclasses (`Operator`, `Region`) for structured results
+- Batch lookups for multiple operators
+- Built with modern Python tooling (uv, pyproject.toml)
+- Dev container support for easy development
+- Comprehensive test coverage
 
 ## Installation
 
@@ -17,6 +18,12 @@ A Python client library and CLI tool for accessing the vnbdigital.de database. T
 
 ```bash
 pip install vnbdigital-client
+```
+
+Oder mit `uv`:
+
+```bash
+uv add vnbdigital-client
 ```
 
 ### From source with uv
@@ -29,8 +36,8 @@ cd vnbdigital-client
 # Install uv if you haven't already
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install the package
-uv pip install -e .
+# Run directly (uv creates the venv and installs dependencies automatically)
+uv run vnbdigital --help
 ```
 
 ## Usage
@@ -40,38 +47,30 @@ uv pip install -e .
 ```python
 from vnbdigital_client import VNBDigitalClient
 
-# Initialize the client
 client = VNBDigitalClient()
 
-# Search for items
-results = client.search("historical documents", limit=10)
-for item in results:
-    print(f"{item['title']}: {item['url']}")
+# Look up a grid operator by BDEW code / ID
+operator = client.get_operator("179")
+if operator:
+    print(f"{operator.name} - {operator.postcode} {operator.city}")
+    print(f"Website: {operator.website}")
+    for region in operator.regions:
+        print(f"  Region: {region.name}")
 
-# Get a specific item
-item = client.get_item("item-id-123")
-print(f"Title: {item['title']}")
-print(f"Description: {item['description']}")
+# Get detailed information (types, description, services, documents, ...)
+details = client.get_operator_details("179")
+if details:
+    print(f"Typ: {', '.join(details.types)}")
+    print(f"Beschreibung: {details.description}")
+    print(f"Aufrufe: {details.clicks}")
 
-# List all collections
-collections = client.list_collections()
-for collection in collections:
-    print(f"{collection['name']}: {collection['itemCount']} items")
-
-# Get items from a collection
-collection = client.get_collection("collection-id", limit=50)
-print(f"Collection: {collection['name']}")
-for item in collection['items']:
-    print(f"  - {item['title']}")
-```
-
-### With API Authentication
-
-```python
-client = VNBDigitalClient(
-    api_url="https://vnbdigital.de/api/graphql",
-    api_key="your-api-key"
-)
+# Batch lookup for multiple operators
+results = client.get_operators(["179", "180", "181"])
+for oid, op in results.items():
+    if op:
+        print(f"[{oid}] {op.name}")
+    else:
+        print(f"[{oid}] not found")
 ```
 
 ### Command-Line Interface
@@ -79,25 +78,21 @@ client = VNBDigitalClient(
 The package includes a CLI tool for easy command-line access:
 
 ```bash
-# Search for items
-vnbdigital search "historical documents"
+# Basic operator lookup
+vnbdigital operator 179
 
-# Get a specific item
-vnbdigital get item-id-123
+# Detailed information
+vnbdigital details 179
 
-# List all collections
-vnbdigital collections
+# JSON output
+vnbdigital operator 179 --format json
 
-# Get items from a collection
-vnbdigital collection collection-id --limit 20
+# Batch lookup
+vnbdigital batch 179 180 181
 
-# Use JSON output format
-vnbdigital search "documents" --format json
-
-# Set API credentials via environment variables
-export VNBDIGITAL_API_URL="https://vnbdigital.de/api/graphql"
-export VNBDIGITAL_API_KEY="your-api-key"
-vnbdigital search "documents"
+# Override API URL via environment variable
+export VNBDIGITAL_API_URL="https://www.vnbdigital.de/gateway/graphql"
+vnbdigital operator 179
 ```
 
 ## Development
@@ -118,33 +113,30 @@ This project includes a dev container configuration for easy development:
 # Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install development dependencies
-uv pip install -e ".[dev]"
-
-# Run tests
-pytest
+# Run tests (uv automatically creates a .venv and installs all dependencies)
+uv run --extra dev pytest
 
 # Run linting
-ruff check src/
+uv run --extra dev ruff check src/
 
 # Format code
-black src/
+uv run --extra dev black src/
 
 # Type checking
-mypy src/vnbdigital_client/
+uv run --extra dev mypy src/vnbdigital_client/
 ```
 
 ### Running Tests
 
 ```bash
 # Run all tests
-pytest
+uv run --extra dev pytest
 
 # Run with coverage
-pytest --cov=vnbdigital_client --cov-report=html
+uv run --extra dev pytest --cov=vnbdigital_client --cov-report=html
 
 # Run specific test file
-pytest tests/test_client.py
+uv run --extra dev pytest tests/test_client.py
 ```
 
 ## Project Structure
@@ -175,8 +167,7 @@ vnbdigital-client/
 
 ### Environment Variables
 
-- `VNBDIGITAL_API_URL`: API endpoint URL (default: https://vnbdigital.de/api/graphql)
-- `VNBDIGITAL_API_KEY`: API authentication key (optional)
+- `VNBDIGITAL_API_URL`: GraphQL endpoint URL (default: https://www.vnbdigital.de/gateway/graphql)
 
 ### Renovate
 
@@ -203,5 +194,5 @@ Daniel Glaser
 ## Acknowledgments
 
 - Built with [uv](https://github.com/astral-sh/uv) - A fast Python package installer
-- GraphQL client powered by [gql](https://github.com/graphql-python/gql)
 - CLI built with [Click](https://click.palletsprojects.com/)
+- Data provided by [vnbdigital.de](https://www.vnbdigital.de)

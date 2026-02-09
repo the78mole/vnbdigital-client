@@ -1,7 +1,8 @@
 """
 Example usage of vnbdigital-client.
 
-This script demonstrates basic usage of the vnbdigital_client library.
+This script demonstrates basic usage of the vnbdigital_client library
+to look up grid operators (Verteilnetzbetreiber) on vnbdigital.de.
 """
 
 from vnbdigital_client import VNBDigitalClient
@@ -9,51 +10,60 @@ from vnbdigital_client import VNBDigitalClient
 
 def main():
     """Main example function."""
-    # Initialize the client
-    # You can pass api_url and api_key if needed
     client = VNBDigitalClient()
 
     print("=== vnbdigital-client Example ===\n")
 
-    # Example 1: Search for items
-    print("1. Searching for items...")
+    # Example 1: Fetch basic operator info
+    print("1. Looking up operator 179 (basic)...")
     try:
-        results = client.search("historical", limit=5)
-        print(f"   Found {len(results)} results:")
-        for i, item in enumerate(results, 1):
-            print(f"   {i}. {item.get('title', 'N/A')}")
-    except Exception as e:
-        print(f"   Error during search: {e}")
-
-    print()
-
-    # Example 2: List collections
-    print("2. Listing collections...")
-    try:
-        collections = client.list_collections()
-        print(f"   Found {len(collections)} collections:")
-        for i, collection in enumerate(collections[:3], 1):
-            print(
-                f"   {i}. {collection.get('name', 'N/A')} ({collection.get('itemCount', 0)} items)"
-            )
-    except Exception as e:
-        print(f"   Error listing collections: {e}")
-
-    print()
-
-    # Example 3: Get a specific item (this will likely fail without a valid ID)
-    print("3. Getting a specific item...")
-    try:
-        item = client.get_item("example-id")
-        if item:
-            print(f"   Title: {item.get('title', 'N/A')}")
-            print(f"   Description: {item.get('description', 'N/A')[:100]}...")
+        op = client.get_operator("179")
+        if op:
+            print(f"   Name:    {op.name}")
+            print(f"   Adresse: {op.address}, {op.postcode} {op.city}")
+            print(f"   Website: {op.website}")
+            if op.regions:
+                print(f"   Regionen: {', '.join(r.name for r in op.regions)}")
         else:
-            print("   Item not found (expected - example ID)")
+            print("   Nicht gefunden.")
     except Exception as e:
-        print(f"   Error getting item: {e}")
+        print(f"   Fehler: {e}")
 
-    print("\n=== Example Complete ===")
+    print()
+
+    # Example 2: Fetch detailed operator info
+    print("2. Looking up operator 179 (detailliert)...")
+    try:
+        op = client.get_operator_details("179")
+        if op:
+            print(f"   Name:         {op.name}")
+            print(f"   Beschreibung: {op.description or 'N/A'}")
+            print(f"   Typ:          {', '.join(op.types) if op.types else 'N/A'}")
+            print(f"   Aufrufe:      {op.clicks}")
+            services = op.raw.get("services", [])
+            if services:
+                titles = [s.get("title", "?") for s in services]
+                print(f"   Dienste:      {', '.join(titles)}")
+        else:
+            print("   Nicht gefunden.")
+    except Exception as e:
+        print(f"   Fehler: {e}")
+
+    print()
+
+    # Example 3: Batch lookup
+    print("3. Batch-Abfrage für IDs 179, 180, 99999...")
+    try:
+        results = client.get_operators(["179", "180", "99999"])
+        for oid, op in results.items():
+            if op:
+                print(f"   [{oid}] {op.name} - {op.postcode} {op.city}")
+            else:
+                print(f"   [{oid}] Nicht gefunden")
+    except Exception as e:
+        print(f"   Fehler: {e}")
+
+    print("\n=== Beispiel abgeschlossen ===")
 
 
 if __name__ == "__main__":

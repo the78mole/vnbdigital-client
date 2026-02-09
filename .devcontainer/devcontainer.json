@@ -16,7 +16,10 @@
   },
   // Capture gh auth token on host before container starts
   "initializeCommand": "bash -c 'TOKEN=$(gh auth token 2>/dev/null) && echo GITHUB_TOKEN=$TOKEN > .devcontainer/.env || echo GITHUB_TOKEN= > .devcontainer/.env'",
-  "runArgs": ["--env-file", ".devcontainer/.env"],
+  "runArgs": [
+    "--env-file",
+    ".devcontainer/.env"
+  ],
   // Forward SSH agent into the container
   "mounts": [
     "source=${localEnv:SSH_AUTH_SOCK},target=/ssh-agent,type=bind,consistency=cached"
@@ -31,7 +34,8 @@
         "ms-python.vscode-pylance",
         "ms-python.black-formatter",
         "charliermarsh.ruff",
-        "GitHub.copilot"
+        "GitHub.copilot",
+        "GitHub.copilot-chat"
       ],
       "settings": {
         "python.defaultInterpreterPath": "/usr/local/bin/python",

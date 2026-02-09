@@ -22,7 +22,12 @@ Thank you for your interest in contributing to vnbdigital-client! This document 
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
 
-3. **Create a virtual environment and install dependencies:**
+3. **Run directly with `uv` (automatically creates `.venv` and installs dependencies):**
+   ```bash
+   uv run --extra dev pytest
+   ```
+
+   Alternativ kannst du die Umgebung auch manuell einrichten:
    ```bash
    uv venv
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
@@ -45,13 +50,13 @@ If you use VS Code, you can use the provided dev container:
 
 ```bash
 # Run all tests
-pytest
+uv run --extra dev pytest
 
 # Run with coverage
-pytest --cov=vnbdigital_client --cov-report=html
+uv run --extra dev pytest --cov=vnbdigital_client --cov-report=html
 
 # Run specific test file
-pytest tests/test_client.py
+uv run --extra dev pytest tests/test_client.py
 ```
 
 ### Code Formatting
@@ -60,10 +65,10 @@ We use [Black](https://github.com/psf/black) for code formatting:
 
 ```bash
 # Format code
-black src/ tests/ examples/
+uv run --extra dev black src/ tests/ examples/
 
 # Check formatting without making changes
-black --check src/
+uv run --extra dev black --check src/
 ```
 
 ### Linting
@@ -72,10 +77,10 @@ We use [Ruff](https://github.com/astral-sh/ruff) for linting:
 
 ```bash
 # Run linter
-ruff check src/
+uv run --extra dev ruff check src/
 
 # Auto-fix issues
-ruff check src/ --fix
+uv run --extra dev ruff check src/ --fix
 ```
 
 ### Type Checking
@@ -83,17 +88,13 @@ ruff check src/ --fix
 We use [mypy](https://mypy-lang.org/) for type checking:
 
 ```bash
-mypy src/vnbdigital_client/
+uv run --extra dev mypy src/vnbdigital_client/
 ```
 
 ### Building the Package
 
 ```bash
-# Install build tool
-uv pip install build
-
-# Build the package
-python -m build
+uv build
 ```
 
 ## Making Changes
@@ -137,10 +138,10 @@ Fixes #123
 
 Before submitting your PR, make sure:
 
-- [ ] Tests pass (`pytest`)
-- [ ] Code is formatted (`black src/ tests/`)
-- [ ] Linting passes (`ruff check src/`)
-- [ ] Type checking passes (`mypy src/vnbdigital_client/`)
+- [ ] Tests pass (`uv run --extra dev pytest`)
+- [ ] Code is formatted (`uv run --extra dev black src/ tests/`)
+- [ ] Linting passes (`uv run --extra dev ruff check src/`)
+- [ ] Type checking passes (`uv run --extra dev mypy src/vnbdigital_client/`)
 - [ ] Documentation is updated (if applicable)
 - [ ] CHANGELOG is updated (if applicable)
 - [ ] Commit messages follow guidelines

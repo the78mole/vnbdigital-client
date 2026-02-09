@@ -2,164 +2,293 @@
 Main client for vnbdigital.de API.
 
 This module provides the VNBDigitalClient class which abstracts GraphQL operations
-to provide a simple Python API for accessing vnbdigital.de data.
+to provide a simple Python API for accessing vnbdigital.de grid operator data.
+
+The vnbdigital.de API uses GraphQL with the query ``vnb_vnb(id: $id)`` to look up
+grid operators (Verteilnetzbetreiber) by their BDEW code.
 """
 
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
-from gql import Client, gql
-from gql.transport.requests import RequestsHTTPTransport
+
+import requests
+
+
+@dataclass
+class Region:
+    """A geographical region associated with a grid operator."""
+
+    id: str
+    name: str
+
+
+@dataclass
+class Operator:
+    """Information about a grid operator (Verteilnetzbetreiber).
+
+    Attributes:
+        id: Internal vnbdigital ID (``_id``).
+        name: Name of the operator.
+        address: Street address.
+        postcode: Postal code.
+        city: City name.
+        phone: Phone number.
+        contact: Contact information.
+        website: Website URL.
+        description: Optional description text.
+        types: Operator type tags (e.g. ``["Strom"]``).
+        layer_url: WMS layer URL for the service-area map.
+        bbox: Bounding box coordinates ``[west, south, east, north]``.
+        regions: List of :class:`Region` objects.
+        image_url: URL of a header image.
+        logo_url: URL of the operator's logo.
+        public_required: Whether public access is required.
+        clicks: Number of clicks/views on vnbdigital.de.
+        raw: The full raw API response dict.
+    """
+
+    id: str
+    name: str
+    address: str = ""
+    postcode: str = ""
+    city: str = ""
+    phone: Optional[str] = None
+    contact: Optional[str] = None
+    website: Optional[str] = None
+    description: Optional[str] = None
+    types: List[str] = field(default_factory=list)
+    layer_url: Optional[str] = None
+    bbox: Optional[List[float]] = None
+    regions: List[Region] = field(default_factory=list)
+    image_url: Optional[str] = None
+    logo_url: Optional[str] = None
+    public_required: Optional[bool] = None
+    clicks: Optional[int] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+
+# ---------------------------------------------------------------------------
+# GraphQL query fragments
+# ---------------------------------------------------------------------------
+
+OPERATOR_QUERY_BASIC = """
+query ($id: ID!) {
+  vnb_vnb(id: $id) {
+    _id
+    name
+    address
+    postcode
+    city
+    phone
+    contact
+    website
+    layerUrl
+    bbox
+    regions {
+      _id
+      name
+    }
+  }
+}
+"""
+
+OPERATOR_QUERY_DETAILED = """
+query ($id: ID!) {
+  vnb_vnb(id: $id) {
+    _id
+    name
+    types
+    image {
+      url
+    }
+    logo {
+      url
+    }
+    layerUrl
+    bbox
+    description
+    address
+    postcode
+    city
+    phone
+    contact
+    website
+    publicRequired
+    clicks
+    regions {
+      _id
+      name
+    }
+    services {
+      type {
+        _id
+        type
+        name
+        title
+        description
+      }
+      title
+    }
+    documents {
+      _id
+      name
+      type
+      url
+    }
+  }
+}
+"""
 
 
 class VNBDigitalClient:
     """
-    Client for accessing vnbdigital.de database.
+    Client for accessing vnbdigital.de grid operator data.
 
-    This client abstracts the GraphQL API and provides simple methods
-    to query and retrieve data from vnbdigital.de.
+    This client uses the vnbdigital.de GraphQL gateway to look up
+    Verteilnetzbetreiber (grid operators) by their BDEW code / ID.
 
     Args:
-        api_url: The GraphQL API endpoint URL (default: vnbdigital.de API)
-        api_key: Optional API key for authentication
+        api_url: The GraphQL API endpoint URL.
+        timeout: HTTP request timeout in seconds.
+
+    Example::
+
+        client = VNBDigitalClient()
+        operator = client.get_operator("179")
+        print(operator.name, operator.city)
     """
 
-    DEFAULT_API_URL = "https://vnbdigital.de/api/graphql"
+    DEFAULT_API_URL = "https://www.vnbdigital.de/gateway/graphql"
 
-    def __init__(self, api_url: Optional[str] = None, api_key: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        api_url: Optional[str] = None,
+        timeout: int = 30,
+    ) -> None:
         """Initialize the vnbdigital client."""
         self.api_url = api_url or self.DEFAULT_API_URL
-        self.api_key = api_key
+        self.timeout = timeout
 
-        # Setup transport with optional authentication
-        headers = {}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
 
-        transport = RequestsHTTPTransport(
-            url=self.api_url,
-            headers=headers,
-            verify=True,
-            retries=3,
+    def _execute(self, query: str, variables: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Execute a GraphQL query and return the ``data`` payload.
+
+        Raises:
+            ConnectionError: On network / HTTP errors.
+            RuntimeError: When the GraphQL response contains errors.
+        """
+        payload: Dict[str, Any] = {"query": query}
+        if variables:
+            payload["variables"] = variables
+
+        try:
+            response = requests.post(
+                self.api_url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            raise ConnectionError(f"HTTP request failed: {exc}") from exc
+
+        result = response.json()
+
+        if "errors" in result:
+            messages = "; ".join(e.get("message", str(e)) for e in result["errors"])
+            raise RuntimeError(f"GraphQL errors: {messages}")
+
+        return result.get("data", {})
+
+    @staticmethod
+    def _parse_operator(raw: Dict[str, Any]) -> Operator:
+        """Convert the raw ``vnb_vnb`` dict into an :class:`Operator`."""
+        return Operator(
+            id=raw["_id"],
+            name=raw.get("name", ""),
+            address=raw.get("address", ""),
+            postcode=raw.get("postcode", ""),
+            city=raw.get("city", ""),
+            phone=raw.get("phone"),
+            contact=raw.get("contact"),
+            website=raw.get("website"),
+            description=raw.get("description"),
+            types=raw.get("types", []),
+            layer_url=raw.get("layerUrl"),
+            bbox=raw.get("bbox"),
+            regions=[
+                Region(id=r["_id"], name=r["name"]) for r in raw.get("regions", [])
+            ],
+            image_url=raw.get("image", {}).get("url") if raw.get("image") else None,
+            logo_url=raw.get("logo", {}).get("url") if raw.get("logo") else None,
+            public_required=raw.get("publicRequired"),
+            clicks=raw.get("clicks"),
+            raw=raw,
         )
 
-        self.client = Client(transport=transport, fetch_schema_from_transport=False)
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
 
-    def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_operator(self, operator_id: str) -> Optional[Operator]:
         """
-        Search for items in the vnbdigital database.
+        Fetch basic information for a grid operator by ID.
 
         Args:
-            query: Search query string
-            limit: Maximum number of results to return
+            operator_id: BDEW code or vnbdigital ID of the operator
+                (e.g. ``"179"``).
 
         Returns:
-            List of search results
+            An :class:`Operator` instance, or ``None`` if the ID is unknown.
+
+        Raises:
+            ConnectionError: On network / HTTP errors.
+            RuntimeError: On GraphQL-level errors.
         """
-        graphql_query = gql("""
-            query Search($query: String!, $limit: Int!) {
-                search(query: $query, limit: $limit) {
-                    id
-                    title
-                    description
-                    url
-                }
-            }
-        """)
+        data = self._execute(OPERATOR_QUERY_BASIC, variables={"id": operator_id})
+        vnb = data.get("vnb_vnb")
+        if vnb is None:
+            return None
+        return self._parse_operator(vnb)
 
-        params = {"query": query, "limit": limit}
-
-        try:
-            result = self.client.execute(graphql_query, variable_values=params)
-            return result.get("search", [])
-        except Exception as e:
-            raise Exception(f"Search failed: {str(e)}")
-
-    def get_item(self, item_id: str) -> Optional[Dict[str, Any]]:
+    def get_operator_details(self, operator_id: str) -> Optional[Operator]:
         """
-        Get a specific item by ID.
+        Fetch detailed information for a grid operator by ID.
+
+        This returns the same :class:`Operator` object but with additional
+        fields populated (``types``, ``description``, ``image_url``,
+        ``logo_url``, ``clicks``, etc.).  The full raw response is available
+        in :attr:`Operator.raw`.
 
         Args:
-            item_id: The ID of the item to retrieve
+            operator_id: BDEW code or vnbdigital ID of the operator.
 
         Returns:
-            Item data or None if not found
+            An :class:`Operator` instance, or ``None`` if the ID is unknown.
         """
-        graphql_query = gql("""
-            query GetItem($id: ID!) {
-                item(id: $id) {
-                    id
-                    title
-                    description
-                    url
-                    metadata
-                    createdAt
-                    updatedAt
-                }
-            }
-        """)
+        data = self._execute(OPERATOR_QUERY_DETAILED, variables={"id": operator_id})
+        vnb = data.get("vnb_vnb")
+        if vnb is None:
+            return None
+        return self._parse_operator(vnb)
 
-        params = {"id": item_id}
-
-        try:
-            result = self.client.execute(graphql_query, variable_values=params)
-            return result.get("item")
-        except Exception as e:
-            raise Exception(f"Failed to get item: {str(e)}")
-
-    def list_collections(self) -> List[Dict[str, Any]]:
+    def get_operators(self, operator_ids: List[str]) -> Dict[str, Optional[Operator]]:
         """
-        List all available collections.
+        Fetch multiple operators by their IDs.
 
-        Returns:
-            List of collections
-        """
-        graphql_query = gql("""
-            query ListCollections {
-                collections {
-                    id
-                    name
-                    description
-                    itemCount
-                }
-            }
-        """)
-
-        try:
-            result = self.client.execute(graphql_query)
-            return result.get("collections", [])
-        except Exception as e:
-            raise Exception(f"Failed to list collections: {str(e)}")
-
-    def get_collection(self, collection_id: str, limit: int = 50) -> Dict[str, Any]:
-        """
-        Get items from a specific collection.
+        This is a convenience wrapper that calls :meth:`get_operator` for
+        each ID.
 
         Args:
-            collection_id: The ID of the collection
-            limit: Maximum number of items to return
+            operator_ids: List of BDEW codes / vnbdigital IDs.
 
         Returns:
-            Collection data with items
+            Dict mapping each requested ID to an :class:`Operator` or ``None``.
         """
-        graphql_query = gql("""
-            query GetCollection($id: ID!, $limit: Int!) {
-                collection(id: $id) {
-                    id
-                    name
-                    description
-                    items(limit: $limit) {
-                        id
-                        title
-                        description
-                        url
-                    }
-                }
-            }
-        """)
-
-        params = {"id": collection_id, "limit": limit}
-
-        try:
-            result = self.client.execute(graphql_query, variable_values=params)
-            return result.get("collection", {})
-        except Exception as e:
-            raise Exception(f"Failed to get collection: {str(e)}")
+        results: Dict[str, Optional[Operator]] = {}
+        for oid in operator_ids:
+            results[oid] = self.get_operator(oid)
+        return results

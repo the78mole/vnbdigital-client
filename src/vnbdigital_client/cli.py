@@ -1,7 +1,7 @@
 """
 Command-line interface for vnbdigital-client.
 
-This module provides a CLI tool for interacting with the vnbdigital.de database
+This module provides a CLI tool for looking up grid operators on vnbdigital.de
 from the command line.
 """
 
@@ -15,176 +15,172 @@ from vnbdigital_client import VNBDigitalClient
 
 
 @click.group()
-@click.option("--api-url", envvar="VNBDIGITAL_API_URL", help="API endpoint URL")
-@click.option("--api-key", envvar="VNBDIGITAL_API_KEY", help="API authentication key")
+@click.option("--api-url", envvar="VNBDIGITAL_API_URL", help="GraphQL endpoint URL")
 @click.pass_context
-def main(ctx: click.Context, api_url: Optional[str], api_key: Optional[str]) -> None:
+def main(ctx: click.Context, api_url: Optional[str]) -> None:
     """
-    vnbdigital CLI - A command-line tool for accessing vnbdigital.de database.
+    vnbdigital CLI - Look up grid operators on vnbdigital.de.
 
-    Use environment variables VNBDIGITAL_API_URL and VNBDIGITAL_API_KEY
-    or pass them as options.
+    Operators are identified by their BDEW code or vnbdigital ID.
+
+    Set VNBDIGITAL_API_URL to override the default endpoint.
     """
     ctx.ensure_object(dict)
-    ctx.obj["client"] = VNBDigitalClient(api_url=api_url, api_key=api_key)
+    ctx.obj["client"] = VNBDigitalClient(api_url=api_url)
 
 
 @main.command()
-@click.argument("query")
-@click.option("--limit", default=10, help="Maximum number of results")
+@click.argument("operator_id")
 @click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table")
 @click.pass_context
-def search(ctx: click.Context, query: str, limit: int, output_format: str) -> None:
+def operator(ctx: click.Context, operator_id: str, output_format: str) -> None:
     """
-    Search for items in the vnbdigital database.
+    Get basic information for a grid operator.
+
+    OPERATOR_ID is the BDEW code or vnbdigital ID (e.g. "179").
 
     Example:
-        vnbdigital search "historical documents"
+        vnbdigital operator 179
     """
-    client = ctx.obj["client"]
+    client: VNBDigitalClient = ctx.obj["client"]
 
     try:
-        results = client.search(query, limit=limit)
+        op = client.get_operator(operator_id)
 
-        if output_format == "json":
-            click.echo(json.dumps(results, indent=2))
-        else:
-            if not results:
-                click.echo("No results found.")
-            else:
-                click.echo(f"\nFound {len(results)} results:\n")
-                for i, item in enumerate(results, 1):
-                    click.echo(f"{i}. {item.get('title', 'N/A')}")
-                    click.echo(f"   ID: {item.get('id', 'N/A')}")
-                    if item.get("description"):
-                        desc = item.get("description")
-                        if len(desc) > 100:
-                            click.echo(f"   Description: {desc[:100]}...")
-                        else:
-                            click.echo(f"   Description: {desc}")
-                    click.echo(f"   URL: {item.get('url', 'N/A')}")
-                    click.echo()
-    except Exception as e:
-        click.echo(f"Error: {str(e)}", err=True)
-        sys.exit(1)
-
-
-@main.command()
-@click.argument("item_id")
-@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table")
-@click.pass_context
-def get(ctx: click.Context, item_id: str, output_format: str) -> None:
-    """
-    Get a specific item by ID.
-
-    Example:
-        vnbdigital get 12345
-    """
-    client = ctx.obj["client"]
-
-    try:
-        item = client.get_item(item_id)
-
-        if not item:
-            click.echo(f"Item with ID '{item_id}' not found.")
+        if op is None:
+            click.echo(f"Operator '{operator_id}' not found.")
             sys.exit(1)
 
         if output_format == "json":
-            click.echo(json.dumps(item, indent=2))
+            click.echo(json.dumps(op.raw, indent=2, ensure_ascii=False))
         else:
-            click.echo("\nItem Details:\n")
-            click.echo(f"ID: {item.get('id', 'N/A')}")
-            click.echo(f"Title: {item.get('title', 'N/A')}")
-            click.echo(f"Description: {item.get('description', 'N/A')}")
-            click.echo(f"URL: {item.get('url', 'N/A')}")
-            if item.get("metadata"):
-                click.echo(f"Metadata: {json.dumps(item['metadata'], indent=2)}")
-            if item.get("createdAt"):
-                click.echo(f"Created: {item.get('createdAt')}")
-            if item.get("updatedAt"):
-                click.echo(f"Updated: {item.get('updatedAt')}")
+            click.echo(f"\n{'='*60}")
+            click.echo(f"  {op.name}")
+            click.echo(f"{'='*60}")
+            click.echo(f"  ID:       {op.id}")
+            if op.address or op.postcode or op.city:
+                click.echo(f"  Adresse:  {op.address}, {op.postcode} {op.city}")
+            if op.phone:
+                click.echo(f"  Telefon:  {op.phone}")
+            if op.contact:
+                click.echo(f"  Kontakt:  {op.contact}")
+            if op.website:
+                click.echo(f"  Website:  {op.website}")
+            if op.regions:
+                names = ", ".join(r.name for r in op.regions)
+                click.echo(f"  Regionen: {names}")
+            if op.bbox:
+                click.echo(f"  BBox:     {op.bbox}")
+            click.echo()
     except Exception as e:
-        click.echo(f"Error: {str(e)}", err=True)
+        click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
 
 @main.command()
+@click.argument("operator_id")
 @click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table")
 @click.pass_context
-def collections(ctx: click.Context, output_format: str) -> None:
+def details(ctx: click.Context, operator_id: str, output_format: str) -> None:
     """
-    List all available collections.
+    Get detailed information for a grid operator.
+
+    Returns additional fields like description, types, logo, services, etc.
 
     Example:
-        vnbdigital collections
+        vnbdigital details 179
     """
-    client = ctx.obj["client"]
+    client: VNBDigitalClient = ctx.obj["client"]
 
     try:
-        collections_list = client.list_collections()
+        op = client.get_operator_details(operator_id)
 
-        if output_format == "json":
-            click.echo(json.dumps(collections_list, indent=2))
-        else:
-            if not collections_list:
-                click.echo("No collections found.")
-            else:
-                click.echo(f"\nAvailable Collections ({len(collections_list)}):\n")
-                for i, collection in enumerate(collections_list, 1):
-                    click.echo(f"{i}. {collection.get('name', 'N/A')}")
-                    click.echo(f"   ID: {collection.get('id', 'N/A')}")
-                    if collection.get("description"):
-                        click.echo(f"   Description: {collection.get('description')}")
-                    click.echo(f"   Items: {collection.get('itemCount', 'N/A')}")
-                    click.echo()
-    except Exception as e:
-        click.echo(f"Error: {str(e)}", err=True)
-        sys.exit(1)
-
-
-@main.command()
-@click.argument("collection_id")
-@click.option("--limit", default=50, help="Maximum number of items")
-@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table")
-@click.pass_context
-def collection(ctx: click.Context, collection_id: str, limit: int, output_format: str) -> None:
-    """
-    Get items from a specific collection.
-
-    Example:
-        vnbdigital collection abc123 --limit 20
-    """
-    client = ctx.obj["client"]
-
-    try:
-        collection_data = client.get_collection(collection_id, limit=limit)
-
-        if not collection_data:
-            click.echo(f"Collection with ID '{collection_id}' not found.")
+        if op is None:
+            click.echo(f"Operator '{operator_id}' not found.")
             sys.exit(1)
 
         if output_format == "json":
-            click.echo(json.dumps(collection_data, indent=2))
+            click.echo(json.dumps(op.raw, indent=2, ensure_ascii=False))
         else:
-            click.echo(f"\nCollection: {collection_data.get('name', 'N/A')}")
-            click.echo(f"ID: {collection_data.get('id', 'N/A')}")
-            if collection_data.get("description"):
-                click.echo(f"Description: {collection_data.get('description')}")
-
-            items = collection_data.get("items", [])
-            click.echo(f"\nItems ({len(items)}):\n")
-            for i, item in enumerate(items, 1):
-                click.echo(f"{i}. {item.get('title', 'N/A')}")
-                click.echo(f"   ID: {item.get('id', 'N/A')}")
-                if item.get("description"):
-                    desc = item.get("description", "")
-                    if len(desc) > 100:
-                        click.echo(f"   Description: {desc[:100]}...")
-                    else:
-                        click.echo(f"   Description: {desc}")
-                click.echo()
+            click.echo(f"\n{'='*60}")
+            click.echo(f"  {op.name}")
+            click.echo(f"{'='*60}")
+            click.echo(f"  ID:          {op.id}")
+            if op.types:
+                click.echo(f"  Typ:         {', '.join(op.types)}")
+            if op.description:
+                click.echo(f"  Beschreibung: {op.description}")
+            if op.address or op.postcode or op.city:
+                click.echo(f"  Adresse:     {op.address}, {op.postcode} {op.city}")
+            if op.phone:
+                click.echo(f"  Telefon:     {op.phone}")
+            if op.contact:
+                click.echo(f"  Kontakt:     {op.contact}")
+            if op.website:
+                click.echo(f"  Website:     {op.website}")
+            if op.image_url:
+                click.echo(f"  Bild:        {op.image_url}")
+            if op.logo_url:
+                click.echo(f"  Logo:        {op.logo_url}")
+            if op.regions:
+                names = ", ".join(r.name for r in op.regions)
+                click.echo(f"  Regionen:    {names}")
+            if op.bbox:
+                click.echo(f"  BBox:        {op.bbox}")
+            if op.clicks is not None:
+                click.echo(f"  Aufrufe:     {op.clicks}")
+            # Services
+            services = op.raw.get("services", [])
+            if services:
+                click.echo(f"\n  Dienste ({len(services)}):")
+                for svc in services:
+                    title = svc.get("title", svc.get("type", {}).get("name", "N/A"))
+                    click.echo(f"    - {title}")
+            # Documents
+            documents = op.raw.get("documents", [])
+            if documents:
+                click.echo(f"\n  Dokumente ({len(documents)}):")
+                for doc in documents:
+                    click.echo(f"    - {doc.get('name', 'N/A')} ({doc.get('type', '')})")
+            click.echo()
     except Exception as e:
-        click.echo(f"Error: {str(e)}", err=True)
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command(name="batch")
+@click.argument("operator_ids", nargs=-1, required=True)
+@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table")
+@click.pass_context
+def batch_lookup(ctx: click.Context, operator_ids: tuple, output_format: str) -> None:
+    """
+    Look up multiple operators at once.
+
+    Example:
+        vnbdigital batch 179 180 181
+    """
+    client: VNBDigitalClient = ctx.obj["client"]
+
+    try:
+        results = client.get_operators(list(operator_ids))
+
+        if output_format == "json":
+            json_out = {}
+            for oid, op in results.items():
+                json_out[oid] = op.raw if op else None
+            click.echo(json.dumps(json_out, indent=2, ensure_ascii=False))
+        else:
+            found = sum(1 for v in results.values() if v is not None)
+            click.echo(f"\nResults: {found}/{len(operator_ids)} operators found\n")
+            for oid, op in results.items():
+                if op:
+                    location = f"{op.postcode} {op.city}".strip()
+                    click.echo(f"  [{oid}] {op.name} - {location}")
+                else:
+                    click.echo(f"  [{oid}] not found")
+            click.echo()
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
 
