@@ -31,7 +31,16 @@ SAMPLE_VNB_DETAILED = {
     "publicRequired": True,
     "clicks": 42,
     "services": [
-        {"type": {"_id": "s1", "type": "strom", "name": "Strom", "title": "Stromversorgung", "description": "Netzanschluss"}, "title": "Stromversorgung"}
+        {
+            "type": {
+                "_id": "s1",
+                "type": "strom",
+                "name": "Strom",
+                "title": "Stromversorgung",
+                "description": "Netzanschluss",
+            },
+            "title": "Stromversorgung",
+        }
     ],
     "documents": [
         {"_id": "d1", "name": "Preisblatt", "type": "pdf", "url": "https://example.com/doc.pdf"}
@@ -136,9 +145,7 @@ class TestVNBDigitalClient:
     def test_graphql_error_raises(self, mock_post):
         """Test that GraphQL errors raise RuntimeError."""
         mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "errors": [{"message": "Something went wrong"}]
-        }
+        mock_response.json.return_value = {"errors": [{"message": "Something went wrong"}]}
         mock_response.raise_for_status = MagicMock()
         mock_post.return_value = mock_response
 
@@ -150,6 +157,7 @@ class TestVNBDigitalClient:
     def test_connection_error_raises(self, mock_post):
         """Test that HTTP errors raise ConnectionError."""
         import requests as req
+
         mock_post.side_effect = req.ConnectionError("No route to host")
 
         client = VNBDigitalClient()

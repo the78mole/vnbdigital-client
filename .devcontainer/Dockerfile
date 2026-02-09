@@ -26,4 +26,3 @@ RUN groupadd --gid $USER_GID code \
 WORKDIR /workspace
 
 USER code
-

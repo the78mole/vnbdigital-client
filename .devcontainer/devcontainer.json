@@ -14,13 +14,11 @@
     },
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  // Capture gh auth token on host before container starts
   "initializeCommand": "bash -c 'TOKEN=$(gh auth token 2>/dev/null) && echo GITHUB_TOKEN=$TOKEN > .devcontainer/.env || echo GITHUB_TOKEN= > .devcontainer/.env'",
   "runArgs": [
     "--env-file",
     ".devcontainer/.env"
   ],
-  // Forward SSH agent into the container
   "mounts": [
     "source=${localEnv:SSH_AUTH_SOCK},target=/ssh-agent,type=bind,consistency=cached"
   ],
@@ -49,6 +47,5 @@
       }
     }
   },
-  //"postCreateCommand": "uv pip install --system -e '.[dev]'",
   "remoteUser": "code"
 }

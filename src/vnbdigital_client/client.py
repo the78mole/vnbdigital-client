@@ -219,9 +219,7 @@ class VNBDigitalClient:
             types=raw.get("types", []),
             layer_url=raw.get("layerUrl"),
             bbox=raw.get("bbox"),
-            regions=[
-                Region(id=r["_id"], name=r["name"]) for r in raw.get("regions", [])
-            ],
+            regions=[Region(id=r["_id"], name=r["name"]) for r in raw.get("regions", [])],
             image_url=raw.get("image", {}).get("url") if raw.get("image") else None,
             logo_url=raw.get("logo", {}).get("url") if raw.get("logo") else None,
             public_required=raw.get("publicRequired"),

@@ -164,20 +164,20 @@ from typing import List, Dict, Any
 def search_items(query: str, limit: int = 10) -> List[Dict[str, Any]]:
     """
     Search for items matching the query.
-    
+
     Args:
         query: Search query string
         limit: Maximum number of results to return
-        
+
     Returns:
         List of matching items
-        
+
     Raises:
         ValueError: If query is empty
     """
     if not query:
         raise ValueError("Query cannot be empty")
-    
+
     # Implementation here
     return []
 ```
@@ -207,10 +207,10 @@ def test_search_returns_results(mock_client_class):
         "search": [{"id": "1", "title": "Test"}]
     }
     mock_client_class.return_value = mock_client
-    
+
     client = VNBDigitalClient()
     results = client.search("test")
-    
+
     assert len(results) == 1
     assert results[0]["id"] == "1"
 ```

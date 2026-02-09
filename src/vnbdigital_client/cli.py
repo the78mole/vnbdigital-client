@@ -54,9 +54,9 @@ def operator(ctx: click.Context, operator_id: str, output_format: str) -> None:
         if output_format == "json":
             click.echo(json.dumps(op.raw, indent=2, ensure_ascii=False))
         else:
-            click.echo(f"\n{'='*60}")
+            click.echo(f"\n{'=' * 60}")
             click.echo(f"  {op.name}")
-            click.echo(f"{'='*60}")
+            click.echo(f"{'=' * 60}")
             click.echo(f"  ID:       {op.id}")
             if op.address or op.postcode or op.city:
                 click.echo(f"  Adresse:  {op.address}, {op.postcode} {op.city}")
@@ -102,9 +102,9 @@ def details(ctx: click.Context, operator_id: str, output_format: str) -> None:
         if output_format == "json":
             click.echo(json.dumps(op.raw, indent=2, ensure_ascii=False))
         else:
-            click.echo(f"\n{'='*60}")
+            click.echo(f"\n{'=' * 60}")
             click.echo(f"  {op.name}")
-            click.echo(f"{'='*60}")
+            click.echo(f"{'=' * 60}")
             click.echo(f"  ID:          {op.id}")
             if op.types:
                 click.echo(f"  Typ:         {', '.join(op.types)}")
