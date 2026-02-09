@@ -1,0 +1,51 @@
+{
+  "name": "vnbdigital-client Development",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "username": "code",
+      "installZsh": true,
+      "ohMyZsh": true,
+      "ohMyZshTheme": "fino",
+      "configureZshAsDefaultShell": true
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "initializeCommand": "bash -c 'TOKEN=$(gh auth token 2>/dev/null) && echo GITHUB_TOKEN=$TOKEN > .devcontainer/.env || echo GITHUB_TOKEN= > .devcontainer/.env'",
+  "runArgs": [
+    "--env-file",
+    ".devcontainer/.env"
+  ],
+  "mounts": [
+    "source=${localEnv:SSH_AUTH_SOCK},target=/ssh-agent,type=bind,consistency=cached"
+  ],
+  "containerEnv": {
+    "SSH_AUTH_SOCK": "/ssh-agent"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.black-formatter",
+        "charliermarsh.ruff",
+        "GitHub.copilot",
+        "GitHub.copilot-chat"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.linting.enabled": true,
+        "python.linting.ruffEnabled": true,
+        "python.formatting.provider": "black",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": "explicit"
+        }
+      }
+    }
+  },
+  "remoteUser": "code"
+}
