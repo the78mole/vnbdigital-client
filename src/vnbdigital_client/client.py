@@ -201,7 +201,8 @@ class VNBDigitalClient:
             messages = "; ".join(e.get("message", str(e)) for e in result["errors"])
             raise RuntimeError(f"GraphQL errors: {messages}")
 
-        return result.get("data", {})
+        data: Dict[str, Any] = result.get("data", {})
+        return data
 
     @staticmethod
     def _parse_operator(raw: Dict[str, Any]) -> Operator:

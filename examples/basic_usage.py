@@ -8,7 +8,7 @@ to look up grid operators (Verteilnetzbetreiber) on vnbdigital.de.
 from vnbdigital_client import VNBDigitalClient
 
 
-def main():
+def main() -> None:
     """Main example function."""
     client = VNBDigitalClient()
 

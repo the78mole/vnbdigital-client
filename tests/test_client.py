@@ -51,25 +51,25 @@ SAMPLE_VNB_DETAILED = {
 class TestVNBDigitalClient:
     """Test cases for VNBDigitalClient."""
 
-    def test_client_initialization(self):
+    def test_client_initialization(self) -> None:
         """Test that client initialises with default URL."""
         client = VNBDigitalClient()
         assert client.api_url == VNBDigitalClient.DEFAULT_API_URL
         assert client.timeout == 30
 
-    def test_client_with_custom_url(self):
+    def test_client_with_custom_url(self) -> None:
         """Test that client can be initialised with a custom URL."""
         custom_url = "https://custom.api/graphql"
         client = VNBDigitalClient(api_url=custom_url)
         assert client.api_url == custom_url
 
-    def test_client_with_custom_timeout(self):
+    def test_client_with_custom_timeout(self) -> None:
         """Test that client can be initialised with a custom timeout."""
         client = VNBDigitalClient(timeout=60)
         assert client.timeout == 60
 
     @patch("vnbdigital_client.client.requests.post")
-    def test_get_operator(self, mock_post):
+    def test_get_operator(self, mock_post: MagicMock) -> None:
         """Test get_operator returns an Operator."""
         mock_response = MagicMock()
         mock_response.json.return_value = {"data": {"vnb_vnb": SAMPLE_VNB_BASIC}}
@@ -90,7 +90,7 @@ class TestVNBDigitalClient:
         assert op.regions[0].name == "Schleswig-Holstein"
 
     @patch("vnbdigital_client.client.requests.post")
-    def test_get_operator_not_found(self, mock_post):
+    def test_get_operator_not_found(self, mock_post: MagicMock) -> None:
         """Test get_operator returns None for unknown ID."""
         mock_response = MagicMock()
         mock_response.json.return_value = {"data": {"vnb_vnb": None}}
@@ -102,7 +102,7 @@ class TestVNBDigitalClient:
         assert op is None
 
     @patch("vnbdigital_client.client.requests.post")
-    def test_get_operator_details(self, mock_post):
+    def test_get_operator_details(self, mock_post: MagicMock) -> None:
         """Test get_operator_details returns detailed Operator."""
         mock_response = MagicMock()
         mock_response.json.return_value = {"data": {"vnb_vnb": SAMPLE_VNB_DETAILED}}
@@ -123,7 +123,7 @@ class TestVNBDigitalClient:
         assert "documents" in op.raw
 
     @patch("vnbdigital_client.client.requests.post")
-    def test_get_operators_batch(self, mock_post):
+    def test_get_operators_batch(self, mock_post: MagicMock) -> None:
         """Test get_operators looks up multiple IDs."""
         mock_response = MagicMock()
         mock_response.raise_for_status = MagicMock()
@@ -142,7 +142,7 @@ class TestVNBDigitalClient:
         assert results["00000"] is None
 
     @patch("vnbdigital_client.client.requests.post")
-    def test_graphql_error_raises(self, mock_post):
+    def test_graphql_error_raises(self, mock_post: MagicMock) -> None:
         """Test that GraphQL errors raise RuntimeError."""
         mock_response = MagicMock()
         mock_response.json.return_value = {"errors": [{"message": "Something went wrong"}]}
@@ -154,7 +154,7 @@ class TestVNBDigitalClient:
             client.get_operator("179")
 
     @patch("vnbdigital_client.client.requests.post")
-    def test_connection_error_raises(self, mock_post):
+    def test_connection_error_raises(self, mock_post: MagicMock) -> None:
         """Test that HTTP errors raise ConnectionError."""
         import requests as req
 
@@ -168,12 +168,12 @@ class TestVNBDigitalClient:
 class TestOperatorDataclass:
     """Test Operator and Region dataclasses."""
 
-    def test_region_creation(self):
+    def test_region_creation(self) -> None:
         r = Region(id="r1", name="Bayern")
         assert r.id == "r1"
         assert r.name == "Bayern"
 
-    def test_operator_defaults(self):
+    def test_operator_defaults(self) -> None:
         op = Operator(id="1", name="Test")
         assert op.address == ""
         assert op.types == []

@@ -31,7 +31,7 @@ SAMPLE_OPERATOR = Operator(
 class TestCLI:
     """Test cases for CLI."""
 
-    def test_main_help(self):
+    def test_main_help(self) -> None:
         """Test that main command shows help."""
         runner = CliRunner()
         result = runner.invoke(main, ["--help"])
@@ -39,7 +39,7 @@ class TestCLI:
         assert "vnbdigital CLI" in result.output
 
     @patch("vnbdigital_client.cli.VNBDigitalClient")
-    def test_operator_command_table(self, mock_client_class):
+    def test_operator_command_table(self, mock_client_class: MagicMock) -> None:
         """Test operator command with table output."""
         mock_client = MagicMock()
         mock_client.get_operator.return_value = SAMPLE_OPERATOR
@@ -54,7 +54,7 @@ class TestCLI:
         assert "Schleswig-Holstein" in result.output
 
     @patch("vnbdigital_client.cli.VNBDigitalClient")
-    def test_operator_command_json(self, mock_client_class):
+    def test_operator_command_json(self, mock_client_class: MagicMock) -> None:
         """Test operator command with JSON output."""
         mock_client = MagicMock()
         mock_client.get_operator.return_value = SAMPLE_OPERATOR
@@ -67,7 +67,7 @@ class TestCLI:
         assert '"_id": "179"' in result.output
 
     @patch("vnbdigital_client.cli.VNBDigitalClient")
-    def test_operator_not_found(self, mock_client_class):
+    def test_operator_not_found(self, mock_client_class: MagicMock) -> None:
         """Test operator command when operator not found."""
         mock_client = MagicMock()
         mock_client.get_operator.return_value = None
@@ -80,7 +80,7 @@ class TestCLI:
         assert "not found" in result.output
 
     @patch("vnbdigital_client.cli.VNBDigitalClient")
-    def test_details_command(self, mock_client_class):
+    def test_details_command(self, mock_client_class: MagicMock) -> None:
         """Test details command."""
         detailed = Operator(
             id="179",
@@ -103,7 +103,7 @@ class TestCLI:
         assert "42" in result.output
 
     @patch("vnbdigital_client.cli.VNBDigitalClient")
-    def test_batch_command(self, mock_client_class):
+    def test_batch_command(self, mock_client_class: MagicMock) -> None:
         """Test batch command."""
         mock_client = MagicMock()
         mock_client.get_operators.return_value = {
