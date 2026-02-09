@@ -240,7 +240,8 @@ def search(ctx: click.Context, search_term: str, output_format: str, details: bo
                             if len(vnbs) > 3:
                                 click.echo(f"      ... und {len(vnbs) - 3} weitere")
                     except Exception:
-                        pass  # Silently skip if details fetch fails
+                        # Silently skip details fetch on error (optional feature)
+                        pass
 
                 click.echo()
 
