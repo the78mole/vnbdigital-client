@@ -240,7 +240,7 @@ def search(ctx: click.Context, postcode: str, output_format: str) -> None:
                     types = vnb.get("types", [])
                     type_str = f" ({', '.join(types)})" if types else ""
                     click.echo(f"    - {name}{type_str}")
-                    
+
                     # Show voltage types if available
                     voltage_types = vnb.get("voltageTypes", [])
                     if voltage_types:

@@ -383,7 +383,7 @@ class VNBDigitalClient:
         """
         data = self._execute(SEARCH_POSTCODE_QUERY, variables={"code": postcode})
         postcodes_data = data.get("vnb_postcodes", [])
-        
+
         results = []
         for pc in postcodes_data:
             results.append(
