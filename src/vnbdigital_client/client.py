@@ -23,6 +23,18 @@ class Region:
 
 
 @dataclass
+class Postcode:
+    """A postal code area."""
+
+    id: str
+    name: str
+    code: str
+    bbox: Optional[List[float]] = None
+    layer_url: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+
+@dataclass
 class Operator:
     """Information about a grid operator (Verteilnetzbetreiber).
 
@@ -134,6 +146,73 @@ query ($id: ID!) {
       name
       type
       url
+    }
+  }
+}
+"""
+
+SEARCH_POSTCODE_QUERY = """
+query ($code: String!) {
+  vnb_postcodes(code: $code) {
+    _id
+    name
+    code
+    bbox
+    layerUrl
+  }
+}
+"""
+
+SEARCH_BY_POSTCODE_QUERY = """
+fragment vnb_Region on vnb_Region {
+  _id
+  name
+  logo {
+    url
+  }
+  bbox
+  layerUrl
+  slug
+  vnbs {
+    _id
+  }
+}
+
+fragment vnb_VNB on vnb_VNB {
+  _id
+  name
+  logo {
+    url
+  }
+  services {
+    type {
+      name
+      type
+    }
+    activated
+  }
+  bbox
+  layerUrl
+  types
+  voltageTypes
+}
+
+query (
+  $postcodeId: ID
+  $filter: vnb_FilterInput
+  $withPostcode: Boolean = false
+) {
+  vnb_postcode(id: $postcodeId) @include(if: $withPostcode) {
+    _id
+    name
+    code
+    bbox
+    layerUrl
+    regions(filter: $filter) {
+      ...vnb_Region
+    }
+    vnbs(filter: $filter) {
+      ...vnb_VNB
     }
   }
 }
@@ -291,3 +370,64 @@ class VNBDigitalClient:
         for oid in operator_ids:
             results[oid] = self.get_operator(oid)
         return results
+
+    def search_postcode(self, postcode: str) -> List[Postcode]:
+        """
+        Search for postal code areas by their code.
+
+        Args:
+            postcode: The postal code to search for (e.g. "90158").
+
+        Returns:
+            List of :class:`Postcode` objects matching the search.
+        """
+        data = self._execute(SEARCH_POSTCODE_QUERY, variables={"code": postcode})
+        postcodes_data = data.get("vnb_postcodes", [])
+        
+        results = []
+        for pc in postcodes_data:
+            results.append(
+                Postcode(
+                    id=pc["_id"],
+                    name=pc.get("name", ""),
+                    code=pc.get("code", ""),
+                    bbox=pc.get("bbox"),
+                    layer_url=pc.get("layerUrl"),
+                    raw=pc,
+                )
+            )
+        return results
+
+    def search_by_postcode(
+        self,
+        postcode_id: str,
+        only_nap: bool = False,
+        voltage_types: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Search for network operators by postal code ID.
+
+        Args:
+            postcode_id: The internal postal code ID (from :meth:`search_postcode`).
+            only_nap: Filter for network access points only.
+            voltage_types: List of voltage types to filter (e.g. ["Niederspannung", "Mittelspannung"]).
+
+        Returns:
+            Dict containing postcode info, regions, and vnbs (network operators).
+        """
+        if voltage_types is None:
+            voltage_types = ["Niederspannung", "Mittelspannung"]
+
+        variables = {
+            "postcodeId": postcode_id,
+            "withPostcode": True,
+            "filter": {
+                "onlyNap": only_nap,
+                "voltageTypes": voltage_types,
+                "withRegions": True,
+            },
+        }
+
+        data = self._execute(SEARCH_BY_POSTCODE_QUERY, variables=variables)
+        result: Dict[str, Any] = data.get("vnb_postcode", {})
+        return result

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from vnbdigital_client import Operator, Region, VNBDigitalClient
+from vnbdigital_client import Operator, Postcode, Region, VNBDigitalClient
 
 SAMPLE_VNB_BASIC = {
     "_id": "179",
@@ -164,6 +164,99 @@ class TestVNBDigitalClient:
         with pytest.raises(ConnectionError, match="HTTP request failed"):
             client.get_operator("179")
 
+    @patch("vnbdigital_client.client.requests.post")
+    def test_search_postcode(self, mock_post: MagicMock) -> None:
+        """Test search_postcode returns list of Postcode objects."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "data": {
+                "vnb_postcodes": [
+                    {
+                        "_id": "soEbJkxB68ZM6Yvdt",
+                        "name": "Erlangen",
+                        "code": "90158",
+                        "bbox": [10.9, 49.5, 11.1, 49.6],
+                        "layerUrl": "https://www.vnbdigital.de/geoserver/postcode_90158/wms",
+                    }
+                ]
+            }
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        client = VNBDigitalClient()
+        postcodes = client.search_postcode("90158")
+
+        assert len(postcodes) == 1
+        assert postcodes[0].id == "soEbJkxB68ZM6Yvdt"
+        assert postcodes[0].code == "90158"
+        assert postcodes[0].name == "Erlangen"
+        assert postcodes[0].bbox == [10.9, 49.5, 11.1, 49.6]
+
+    @patch("vnbdigital_client.client.requests.post")
+    def test_search_postcode_not_found(self, mock_post: MagicMock) -> None:
+        """Test search_postcode returns empty list for unknown postcode."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"data": {"vnb_postcodes": []}}
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        client = VNBDigitalClient()
+        postcodes = client.search_postcode("99999")
+        assert postcodes == []
+
+    @patch("vnbdigital_client.client.requests.post")
+    def test_search_by_postcode(self, mock_post: MagicMock) -> None:
+        """Test search_by_postcode returns operators in postcode area."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "data": {
+                "vnb_postcode": {
+                    "_id": "soEbJkxB68ZM6Yvdt",
+                    "name": "Erlangen",
+                    "code": "90158",
+                    "bbox": [10.9, 49.5, 11.1, 49.6],
+                    "layerUrl": "https://www.vnbdigital.de/geoserver/postcode_90158/wms",
+                    "regions": [
+                        {
+                            "_id": "r1",
+                            "name": "Bayern",
+                            "logo": {"url": "https://example.com/logo.png"},
+                            "bbox": [10.0, 49.0, 12.0, 50.0],
+                            "layerUrl": "https://www.vnbdigital.de/geoserver/region_r1/wms",
+                            "slug": "bayern",
+                            "vnbs": [{"_id": "179"}],
+                        }
+                    ],
+                    "vnbs": [
+                        {
+                            "_id": "179",
+                            "name": "Stadtwerke Erlangen",
+                            "logo": {"url": "https://example.com/vnb_logo.png"},
+                            "services": [],
+                            "bbox": [10.9, 49.5, 11.1, 49.6],
+                            "layerUrl": "https://www.vnbdigital.de/geoserver/vnb_179/wms",
+                            "types": ["Strom"],
+                            "voltageTypes": ["Niederspannung", "Mittelspannung"],
+                        }
+                    ],
+                }
+            }
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        client = VNBDigitalClient()
+        result = client.search_by_postcode("soEbJkxB68ZM6Yvdt")
+
+        assert result["_id"] == "soEbJkxB68ZM6Yvdt"
+        assert result["code"] == "90158"
+        assert len(result["regions"]) == 1
+        assert result["regions"][0]["name"] == "Bayern"
+        assert len(result["vnbs"]) == 1
+        assert result["vnbs"][0]["name"] == "Stadtwerke Erlangen"
+        assert result["vnbs"][0]["types"] == ["Strom"]
+
 
 class TestOperatorDataclass:
     """Test Operator and Region dataclasses."""
@@ -172,6 +265,14 @@ class TestOperatorDataclass:
         r = Region(id="r1", name="Bayern")
         assert r.id == "r1"
         assert r.name == "Bayern"
+
+    def test_postcode_creation(self) -> None:
+        pc = Postcode(id="pc1", name="Erlangen", code="90158")
+        assert pc.id == "pc1"
+        assert pc.name == "Erlangen"
+        assert pc.code == "90158"
+        assert pc.bbox is None
+        assert pc.raw == {}
 
     def test_operator_defaults(self) -> None:
         op = Operator(id="1", name="Test")

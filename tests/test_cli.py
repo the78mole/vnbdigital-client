@@ -119,3 +119,82 @@ class TestCLI:
         assert "1/2 operators found" in result.output
         assert "Netz Lübeck GmbH" in result.output
         assert "not found" in result.output
+
+    @patch("vnbdigital_client.cli.VNBDigitalClient")
+    def test_search_command_table(self, mock_client_class: MagicMock) -> None:
+        """Test search command with table output."""
+        from vnbdigital_client.client import Postcode
+
+        mock_postcode = Postcode(
+            id="soEbJkxB68ZM6Yvdt",
+            name="Erlangen",
+            code="90158",
+            bbox=[10.9, 49.5, 11.1, 49.6],
+        )
+        mock_result = {
+            "_id": "soEbJkxB68ZM6Yvdt",
+            "name": "Erlangen",
+            "code": "90158",
+            "regions": [{"name": "Bayern"}],
+            "vnbs": [
+                {
+                    "name": "Stadtwerke Erlangen",
+                    "types": ["Strom"],
+                    "voltageTypes": ["Niederspannung", "Mittelspannung"],
+                }
+            ],
+        }
+
+        mock_client = MagicMock()
+        mock_client.search_postcode.return_value = [mock_postcode]
+        mock_client.search_by_postcode.return_value = mock_result
+        mock_client_class.return_value = mock_client
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["search", "90158"])
+
+        assert result.exit_code == 0
+        assert "90158" in result.output
+        assert "Erlangen" in result.output
+        assert "Bayern" in result.output
+        assert "Stadtwerke Erlangen" in result.output
+
+    @patch("vnbdigital_client.cli.VNBDigitalClient")
+    def test_search_command_json(self, mock_client_class: MagicMock) -> None:
+        """Test search command with JSON output."""
+        from vnbdigital_client.client import Postcode
+
+        mock_postcode = Postcode(
+            id="soEbJkxB68ZM6Yvdt",
+            name="Erlangen",
+            code="90158",
+        )
+        mock_result = {
+            "_id": "soEbJkxB68ZM6Yvdt",
+            "code": "90158",
+            "vnbs": [{"name": "Stadtwerke Erlangen"}],
+        }
+
+        mock_client = MagicMock()
+        mock_client.search_postcode.return_value = [mock_postcode]
+        mock_client.search_by_postcode.return_value = mock_result
+        mock_client_class.return_value = mock_client
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["search", "90158", "--format", "json"])
+
+        assert result.exit_code == 0
+        assert '"_id": "soEbJkxB68ZM6Yvdt"' in result.output
+
+    @patch("vnbdigital_client.cli.VNBDigitalClient")
+    def test_search_postcode_not_found(self, mock_client_class: MagicMock) -> None:
+        """Test search command when postcode not found."""
+        mock_client = MagicMock()
+        mock_client.search_postcode.return_value = []
+        mock_client_class.return_value = mock_client
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["search", "99999"])
+
+        assert result.exit_code == 1
+        assert "not found" in result.output

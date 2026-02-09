@@ -6,7 +6,8 @@ A Python client library and CLI tool for accessing vnbdigital.de grid operator (
 
 - Simple Python API for vnbdigital.de grid operator data
 - Command-line interface (CLI) for quick lookups
-- Typed dataclasses (`Operator`, `Region`) for structured results
+- Search for network operators by postal code
+- Typed dataclasses (`Operator`, `Region`, `Postcode`) for structured results
 - Batch lookups for multiple operators
 - Built with modern Python tooling (uv, pyproject.toml)
 - Dev container support for easy development
@@ -71,6 +72,20 @@ for oid, op in results.items():
         print(f"[{oid}] {op.name}")
     else:
         print(f"[{oid}] not found")
+
+# Search for network operators by postal code
+postcodes = client.search_postcode("90158")
+if postcodes:
+    pc = postcodes[0]
+    print(f"Found postcode: {pc.code} - {pc.name}")
+    
+    # Get operators in this postcode area
+    result = client.search_by_postcode(pc.id)
+    print(f"\nNetzbetreiber in {result['code']}:")
+    for vnb in result.get("vnbs", []):
+        print(f"  - {vnb['name']}")
+        if vnb.get("voltageTypes"):
+            print(f"    Spannungsebenen: {', '.join(vnb['voltageTypes'])}")
 ```
 
 ### Command-Line Interface
@@ -89,6 +104,12 @@ vnbdigital operator 179 --format json
 
 # Batch lookup
 vnbdigital batch 179 180 181
+
+# Search for network operators by postal code
+vnbdigital search 90158
+
+# Search with JSON output
+vnbdigital search 90158 --format json
 
 # Override API URL via environment variable
 export VNBDIGITAL_API_URL="https://www.vnbdigital.de/gateway/graphql"

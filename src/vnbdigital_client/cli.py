@@ -184,5 +184,75 @@ def batch_lookup(ctx: click.Context, operator_ids: tuple, output_format: str) ->
         sys.exit(1)
 
 
+@main.command()
+@click.argument("postcode")
+@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table")
+@click.pass_context
+def search(ctx: click.Context, postcode: str, output_format: str) -> None:
+    """
+    Search for network operators by postal code.
+
+    POSTCODE is the postal code to search for (e.g. "90158").
+
+    Example:
+        vnbdigital search 90158
+    """
+    client: VNBDigitalClient = ctx.obj["client"]
+
+    try:
+        # First, find the postcode ID
+        postcodes = client.search_postcode(postcode)
+
+        if not postcodes:
+            click.echo(f"Postal code '{postcode}' not found.")
+            sys.exit(1)
+
+        # Use the first matching postcode
+        pc = postcodes[0]
+
+        # Search for network operators in this postcode area
+        result = client.search_by_postcode(pc.id)
+
+        if not result:
+            click.echo(f"No data found for postal code '{postcode}'.")
+            sys.exit(1)
+
+        if output_format == "json":
+            click.echo(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            click.echo(f"\n{'=' * 60}")
+            click.echo(f"  Postleitzahl: {result.get('code', postcode)} - {result.get('name', '')}")
+            click.echo(f"{'=' * 60}")
+
+            # Display regions
+            regions = result.get("regions", [])
+            if regions:
+                click.echo(f"\n  Regionen ({len(regions)}):")
+                for region in regions:
+                    click.echo(f"    - {region.get('name', 'N/A')}")
+
+            # Display network operators (VNBs)
+            vnbs = result.get("vnbs", [])
+            if vnbs:
+                click.echo(f"\n  Netzbetreiber ({len(vnbs)}):")
+                for vnb in vnbs:
+                    name = vnb.get("name", "N/A")
+                    types = vnb.get("types", [])
+                    type_str = f" ({', '.join(types)})" if types else ""
+                    click.echo(f"    - {name}{type_str}")
+                    
+                    # Show voltage types if available
+                    voltage_types = vnb.get("voltageTypes", [])
+                    if voltage_types:
+                        click.echo(f"      Spannungsebenen: {', '.join(voltage_types)}")
+            else:
+                click.echo("\n  Keine Netzbetreiber gefunden.")
+
+            click.echo()
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     main()
