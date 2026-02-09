@@ -185,70 +185,65 @@ def batch_lookup(ctx: click.Context, operator_ids: tuple, output_format: str) ->
 
 
 @main.command()
-@click.argument("postcode")
+@click.argument("search_term")
 @click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table")
+@click.option("--details", is_flag=True, help="Show detailed info for postcode results")
 @click.pass_context
-def search(ctx: click.Context, postcode: str, output_format: str) -> None:
+def search(ctx: click.Context, search_term: str, output_format: str, details: bool) -> None:
     """
-    Search for network operators by postal code.
+    Search vnbdigital.de for operators, postcodes, regions, etc.
 
-    POSTCODE is the postal code to search for (e.g. "90158").
+    SEARCH_TERM can be a postal code, operator name, or other search query.
+
+    This uses the same unified search API as the vnbdigital.de website.
 
     Example:
         vnbdigital search 90158
+        vnbdigital search 90158 --details
+        vnbdigital search "Stadtwerke"
     """
     client: VNBDigitalClient = ctx.obj["client"]
 
     try:
-        # First, find the postcode ID
-        postcodes = client.search_postcode(postcode)
+        # Use unified search API
+        results = client.search(search_term)
 
-        if not postcodes:
-            click.echo(f"Postal code '{postcode}' not found.")
-            sys.exit(1)
-
-        # Use the first matching postcode
-        pc = postcodes[0]
-
-        # Search for network operators in this postcode area
-        result = client.search_by_postcode(pc.id)
-
-        if not result:
-            click.echo(f"No data found for postal code '{postcode}'.")
+        if not results:
+            click.echo(f"No results found for '{search_term}'.")
             sys.exit(1)
 
         if output_format == "json":
-            click.echo(json.dumps(result, indent=2, ensure_ascii=False))
+            json_out = [r.raw for r in results]
+            click.echo(json.dumps(json_out, indent=2, ensure_ascii=False))
         else:
             click.echo(f"\n{'=' * 60}")
-            click.echo(f"  Postleitzahl: {result.get('code', postcode)} - {result.get('name', '')}")
-            click.echo(f"{'=' * 60}")
+            click.echo(f"  Suchergebnisse für: {search_term}")
+            click.echo(f"{'=' * 60}\n")
 
-            # Display regions
-            regions = result.get("regions", [])
-            if regions:
-                click.echo(f"\n  Regionen ({len(regions)}):")
-                for region in regions:
-                    click.echo(f"    - {region.get('name', 'N/A')}")
+            for result in results:
+                type_label = result.type or "Unknown"
+                click.echo(f"  [{type_label}] {result.title}")
+                if result.subtitle:
+                    click.echo(f"    {result.subtitle}")
+                if result.url:
+                    click.echo(f"    URL: {result.url}")
 
-            # Display network operators (VNBs)
-            vnbs = result.get("vnbs", [])
-            if vnbs:
-                click.echo(f"\n  Netzbetreiber ({len(vnbs)}):")
-                for vnb in vnbs:
-                    name = vnb.get("name", "N/A")
-                    types = vnb.get("types", [])
-                    type_str = f" ({', '.join(types)})" if types else ""
-                    click.echo(f"    - {name}{type_str}")
+                # If it's a postcode and --details flag is set, fetch detailed info
+                if details and result.type == "postcode":
+                    try:
+                        detail_result = client.search_by_postcode(result.id)
+                        vnbs = detail_result.get("vnbs", [])
+                        if vnbs:
+                            click.echo(f"    Netzbetreiber: {len(vnbs)}")
+                            for vnb in vnbs[:3]:  # Show first 3
+                                click.echo(f"      - {vnb.get('name', 'N/A')}")
+                            if len(vnbs) > 3:
+                                click.echo(f"      ... und {len(vnbs) - 3} weitere")
+                    except Exception:
+                        pass  # Silently skip if details fetch fails
 
-                    # Show voltage types if available
-                    voltage_types = vnb.get("voltageTypes", [])
-                    if voltage_types:
-                        click.echo(f"      Spannungsebenen: {', '.join(voltage_types)}")
-            else:
-                click.echo("\n  Keine Netzbetreiber gefunden.")
+                click.echo()
 
-            click.echo()
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)

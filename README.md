@@ -6,8 +6,9 @@ A Python client library and CLI tool for accessing vnbdigital.de grid operator (
 
 - Simple Python API for vnbdigital.de grid operator data
 - Command-line interface (CLI) for quick lookups
-- Search for network operators by postal code
-- Typed dataclasses (`Operator`, `Region`, `Postcode`) for structured results
+- Unified search API matching the vnbdigital.de website (search for postcodes, operators, regions)
+- Direct postcode-based network operator search
+- Typed dataclasses (`Operator`, `Region`, `Postcode`, `SearchResult`) for structured results
 - Batch lookups for multiple operators
 - Built with modern Python tooling (uv, pyproject.toml)
 - Dev container support for easy development
@@ -73,7 +74,13 @@ for oid, op in results.items():
     else:
         print(f"[{oid}] not found")
 
-# Search for network operators by postal code
+# Unified search (same API as vnbdigital.de website)
+# Search for postal codes, operators, regions, etc.
+search_results = client.search("90158")
+for result in search_results:
+    print(f"{result.type}: {result.title} - {result.subtitle}")
+
+# Alternative: Direct postcode search (legacy method)
 postcodes = client.search_postcode("90158")
 if postcodes:
     pc = postcodes[0]
@@ -105,8 +112,13 @@ vnbdigital operator 179 --format json
 # Batch lookup
 vnbdigital batch 179 180 181
 
-# Search for network operators by postal code
+# Unified search (same as vnbdigital.de website)
+# Search for postal codes, operators, regions, etc.
 vnbdigital search 90158
+vnbdigital search "Stadtwerke"
+
+# Search with details for postcode results
+vnbdigital search 90158 --details
 
 # Search with JSON output
 vnbdigital search 90158 --format json

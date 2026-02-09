@@ -257,6 +257,60 @@ class TestVNBDigitalClient:
         assert result["vnbs"][0]["name"] == "Stadtwerke Erlangen"
         assert result["vnbs"][0]["types"] == ["Strom"]
 
+    @patch("vnbdigital_client.client.requests.post")
+    def test_search(self, mock_post: MagicMock) -> None:
+        """Test search returns list of SearchResult objects."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "data": {
+                "vnb_search": [
+                    {
+                        "_id": "soEbJkxB68ZM6Yvdt",
+                        "title": "90158",
+                        "subtitle": "Erlangen",
+                        "logo": {"url": "https://example.com/logo.png"},
+                        "url": "/postcode/soEbJkxB68ZM6Yvdt",
+                        "type": "postcode",
+                    },
+                    {
+                        "_id": "vnb123",
+                        "title": "Stadtwerke Erlangen",
+                        "subtitle": "Strom, Gas",
+                        "logo": None,
+                        "url": "/vnb/vnb123",
+                        "type": "vnb",
+                    },
+                ]
+            }
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        client = VNBDigitalClient()
+        results = client.search("90158")
+
+        assert len(results) == 2
+        assert results[0].id == "soEbJkxB68ZM6Yvdt"
+        assert results[0].title == "90158"
+        assert results[0].subtitle == "Erlangen"
+        assert results[0].type == "postcode"
+        assert results[0].logo_url == "https://example.com/logo.png"
+        assert results[1].id == "vnb123"
+        assert results[1].title == "Stadtwerke Erlangen"
+        assert results[1].type == "vnb"
+
+    @patch("vnbdigital_client.client.requests.post")
+    def test_search_no_results(self, mock_post: MagicMock) -> None:
+        """Test search returns empty list when no results found."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"data": {"vnb_search": []}}
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        client = VNBDigitalClient()
+        results = client.search("99999")
+        assert results == []
+
 
 class TestOperatorDataclass:
     """Test Operator and Region dataclasses."""
@@ -273,6 +327,17 @@ class TestOperatorDataclass:
         assert pc.code == "90158"
         assert pc.bbox is None
         assert pc.raw == {}
+
+    def test_search_result_creation(self) -> None:
+        from vnbdigital_client.client import SearchResult
+
+        sr = SearchResult(id="sr1", title="Test Result", type="postcode")
+        assert sr.id == "sr1"
+        assert sr.title == "Test Result"
+        assert sr.type == "postcode"
+        assert sr.subtitle == ""
+        assert sr.logo_url is None
+        assert sr.raw == {}
 
     def test_operator_defaults(self) -> None:
         op = Operator(id="1", name="Test")

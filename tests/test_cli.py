@@ -123,31 +123,29 @@ class TestCLI:
     @patch("vnbdigital_client.cli.VNBDigitalClient")
     def test_search_command_table(self, mock_client_class: MagicMock) -> None:
         """Test search command with table output."""
-        from vnbdigital_client.client import Postcode
+        from vnbdigital_client.client import SearchResult
 
-        mock_postcode = Postcode(
-            id="soEbJkxB68ZM6Yvdt",
-            name="Erlangen",
-            code="90158",
-            bbox=[10.9, 49.5, 11.1, 49.6],
-        )
-        mock_result = {
-            "_id": "soEbJkxB68ZM6Yvdt",
-            "name": "Erlangen",
-            "code": "90158",
-            "regions": [{"name": "Bayern"}],
-            "vnbs": [
-                {
-                    "name": "Stadtwerke Erlangen",
-                    "types": ["Strom"],
-                    "voltageTypes": ["Niederspannung", "Mittelspannung"],
-                }
-            ],
-        }
+        mock_results = [
+            SearchResult(
+                id="soEbJkxB68ZM6Yvdt",
+                title="90158",
+                subtitle="Erlangen",
+                type="postcode",
+                url="/postcode/soEbJkxB68ZM6Yvdt",
+                raw={},
+            ),
+            SearchResult(
+                id="vnb123",
+                title="Stadtwerke Erlangen",
+                subtitle="Strom, Gas",
+                type="vnb",
+                url="/vnb/vnb123",
+                raw={},
+            ),
+        ]
 
         mock_client = MagicMock()
-        mock_client.search_postcode.return_value = [mock_postcode]
-        mock_client.search_by_postcode.return_value = mock_result
+        mock_client.search.return_value = mock_results
         mock_client_class.return_value = mock_client
 
         runner = CliRunner()
@@ -156,28 +154,27 @@ class TestCLI:
         assert result.exit_code == 0
         assert "90158" in result.output
         assert "Erlangen" in result.output
-        assert "Bayern" in result.output
         assert "Stadtwerke Erlangen" in result.output
+        assert "postcode" in result.output
+        assert "vnb" in result.output
 
     @patch("vnbdigital_client.cli.VNBDigitalClient")
     def test_search_command_json(self, mock_client_class: MagicMock) -> None:
         """Test search command with JSON output."""
-        from vnbdigital_client.client import Postcode
+        from vnbdigital_client.client import SearchResult
 
-        mock_postcode = Postcode(
-            id="soEbJkxB68ZM6Yvdt",
-            name="Erlangen",
-            code="90158",
-        )
-        mock_result = {
-            "_id": "soEbJkxB68ZM6Yvdt",
-            "code": "90158",
-            "vnbs": [{"name": "Stadtwerke Erlangen"}],
-        }
+        mock_results = [
+            SearchResult(
+                id="soEbJkxB68ZM6Yvdt",
+                title="90158",
+                subtitle="Erlangen",
+                type="postcode",
+                raw={"_id": "soEbJkxB68ZM6Yvdt", "title": "90158"},
+            )
+        ]
 
         mock_client = MagicMock()
-        mock_client.search_postcode.return_value = [mock_postcode]
-        mock_client.search_by_postcode.return_value = mock_result
+        mock_client.search.return_value = mock_results
         mock_client_class.return_value = mock_client
 
         runner = CliRunner()
@@ -187,14 +184,14 @@ class TestCLI:
         assert '"_id": "soEbJkxB68ZM6Yvdt"' in result.output
 
     @patch("vnbdigital_client.cli.VNBDigitalClient")
-    def test_search_postcode_not_found(self, mock_client_class: MagicMock) -> None:
-        """Test search command when postcode not found."""
+    def test_search_no_results(self, mock_client_class: MagicMock) -> None:
+        """Test search command when no results found."""
         mock_client = MagicMock()
-        mock_client.search_postcode.return_value = []
+        mock_client.search.return_value = []
         mock_client_class.return_value = mock_client
 
         runner = CliRunner()
         result = runner.invoke(main, ["search", "99999"])
 
         assert result.exit_code == 1
-        assert "not found" in result.output
+        assert "No results found" in result.output

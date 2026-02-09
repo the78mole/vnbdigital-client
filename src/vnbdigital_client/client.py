@@ -35,6 +35,29 @@ class Postcode:
 
 
 @dataclass
+class SearchResult:
+    """A search result from vnb_search query.
+
+    Attributes:
+        id: Internal vnbdigital ID.
+        title: Main title/name of the result.
+        subtitle: Subtitle or additional information.
+        logo_url: URL of the logo image.
+        url: URL link to the resource.
+        type: Type of the result (e.g., "postcode", "vnb", "region").
+        raw: The full raw API response dict.
+    """
+
+    id: str
+    title: str
+    subtitle: str = ""
+    logo_url: Optional[str] = None
+    url: Optional[str] = None
+    type: str = ""
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+
+@dataclass
 class Operator:
     """Information about a grid operator (Verteilnetzbetreiber).
 
@@ -159,6 +182,21 @@ query ($code: String!) {
     code
     bbox
     layerUrl
+  }
+}
+"""
+
+VNB_SEARCH_QUERY = """
+query ($searchTerm: String!) {
+  vnb_search(searchTerm: $searchTerm) {
+    _id
+    title
+    subtitle
+    logo {
+      url
+    }
+    url
+    type
   }
 }
 """
@@ -369,6 +407,44 @@ class VNBDigitalClient:
         results: Dict[str, Optional[Operator]] = {}
         for oid in operator_ids:
             results[oid] = self.get_operator(oid)
+        return results
+
+    def search(self, search_term: str) -> List[SearchResult]:
+        """
+        Search vnbdigital.de using the unified search API.
+
+        This uses the same search endpoint as the vnbdigital.de website,
+        which can find postcodes, operators, regions, and other entities.
+
+        Args:
+            search_term: The search term (e.g. postal code, operator name, etc.).
+
+        Returns:
+            List of :class:`SearchResult` objects matching the search.
+
+        Example::
+
+            client = VNBDigitalClient()
+            results = client.search("90158")
+            for result in results:
+                print(f"{result.type}: {result.title}")
+        """
+        data = self._execute(VNB_SEARCH_QUERY, variables={"searchTerm": search_term})
+        search_results = data.get("vnb_search", [])
+
+        results = []
+        for item in search_results:
+            results.append(
+                SearchResult(
+                    id=item["_id"],
+                    title=item.get("title", ""),
+                    subtitle=item.get("subtitle", ""),
+                    logo_url=item.get("logo", {}).get("url") if item.get("logo") else None,
+                    url=item.get("url"),
+                    type=item.get("type", ""),
+                    raw=item,
+                )
+            )
         return results
 
     def search_postcode(self, postcode: str) -> List[Postcode]:
