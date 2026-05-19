@@ -8,6 +8,7 @@ from the command line.
 import json
 import sys
 from typing import Optional
+from urllib.parse import parse_qs, urlparse
 
 import click
 
@@ -182,6 +183,192 @@ def batch_lookup(ctx: click.Context, operator_ids: tuple, output_format: str) ->
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
+
+
+@main.command()
+@click.argument("search_term")
+@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table")
+@click.option("--details", is_flag=True, help="Show detailed info for postcode results")
+@click.pass_context
+def search(ctx: click.Context, search_term: str, output_format: str, details: bool) -> None:
+    """
+    Search vnbdigital.de for operators, postcodes, regions, etc.
+
+    SEARCH_TERM can be a postal code, operator name, or other search query.
+
+    This uses the same unified search API as the vnbdigital.de website.
+
+    Example:
+        vnbdigital search 90158
+        vnbdigital search 90158 --details
+        vnbdigital search "Stadtwerke"
+    """
+    client: VNBDigitalClient = ctx.obj["client"]
+
+    try:
+        # Use unified search API
+        results = client.search(search_term)
+
+        if not results:
+            click.echo(f"No results found for '{search_term}'.")
+            sys.exit(1)
+
+        if output_format == "json":
+            json_out = [r.raw for r in results]
+            click.echo(json.dumps(json_out, indent=2, ensure_ascii=False))
+        else:
+            click.echo(f"\n{'=' * 60}")
+            click.echo(f"  Suchergebnisse für: {search_term}")
+            click.echo(f"{'=' * 60}\n")
+
+            for result in results:
+                type_label = result.type or "Unknown"
+                click.echo(f"  [{type_label}] {result.title}")
+                if result.subtitle:
+                    click.echo(f"    {result.subtitle}")
+                if result.url:
+                    click.echo(f"    URL: {result.url}")
+
+                if details:
+                    _print_details(client, result.type, result.id, result.url)
+
+                click.echo()
+
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command(name="coordinates")
+@click.argument("coords")
+@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table")
+@click.option(
+    "--voltage",
+    "voltage_types",
+    multiple=True,
+    default=("Niederspannung", "Mittelspannung"),
+    show_default=True,
+    help="Voltage type filter (can be repeated)",
+)
+@click.option("--nap", is_flag=True, help="Filter for network access points only")
+@click.pass_context
+def coordinates(
+    ctx: click.Context,
+    coords: str,
+    output_format: str,
+    voltage_types: tuple,
+    nap: bool,
+) -> None:
+    """
+    Look up network operators for a geographic coordinate.
+
+    COORDS must be a "lat,lon" string, e.g. "49.5510,11.1101".
+
+    The coordinate format matches what the vnbdigital.de website uses
+    internally for location-based searches (LOCATION results).
+
+    Examples:
+
+    \b
+        vnbdigital coordinates "49.5510,11.1101"
+        vnbdigital coordinates "49.5510,11.1101" --format json
+        vnbdigital coordinates "49.5510,11.1101" --voltage Niederspannung
+    """
+    client: VNBDigitalClient = ctx.obj["client"]
+
+    try:
+        result = client.search_by_coordinates(
+            coords,
+            only_nap=nap,
+            voltage_types=list(voltage_types),
+        )
+
+        if output_format == "json":
+            click.echo(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            vnbs = result.get("vnbs", [])
+            regions = result.get("regions", [])
+            geometry = result.get("geometry")
+
+            click.echo(f"\n{'=' * 60}")
+            click.echo(f"  Koordinaten: {coords}")
+            click.echo(f"{'=' * 60}")
+
+            if geometry:
+                geo_coords = geometry.get("coordinates", [])
+                if geo_coords:
+                    click.echo(f"  Punkt:       lon={geo_coords[0]}, lat={geo_coords[1]}")
+
+            if regions:
+                region_names = ", ".join(r.get("name", "?") for r in regions)
+                click.echo(f"  Regionen:    {region_names}")
+
+            if not vnbs:
+                click.echo("  Keine Netzbetreiber gefunden.")
+            else:
+                click.echo(f"\n  Netzbetreiber ({len(vnbs)}):")
+                for vnb in vnbs:
+                    name = vnb.get("name", "N/A")
+                    types = ", ".join(vnb.get("types", []))
+                    voltage = ", ".join(vnb.get("voltageTypes", []))
+                    line = f"    - {name}"
+                    if types:
+                        line += f"  [{types}]"
+                    if voltage:
+                        line += f"  ({voltage})"
+                    click.echo(line)
+
+            click.echo()
+
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+def _print_details(
+    client: VNBDigitalClient,
+    result_type: str,
+    result_id: str,
+    result_url: Optional[str],
+) -> None:
+    """Fetch and print VNB details for a single search result."""
+    try:
+        if result_type.upper() == "POSTCODE":
+            detail = client.search_by_postcode(result_id)
+            _print_vnb_summary(detail.get("vnbs", []))
+        elif result_type.upper() == "LOCATION" and result_url:
+            coords = _extract_coordinates(result_url)
+            if coords:
+                detail = client.search_by_coordinates(coords)
+                _print_vnb_summary(detail.get("vnbs", []))
+    except Exception:
+        # Silently skip details fetch on error (optional feature)
+        pass
+
+
+def _extract_coordinates(url: str) -> Optional[str]:
+    """Extract the coordinates query param from a result URL.
+
+    E.g. ``/overview?coordinates=49.56,10.99&searchType=LOCATION``
+    → ``"49.56,10.99"``
+    """
+    try:
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        coords_list = params.get("coordinates")
+        return coords_list[0] if coords_list else None
+    except Exception:
+        return None
+
+
+def _print_vnb_summary(vnbs: list) -> None:
+    """Print a short summary of network operators."""
+    if vnbs:
+        click.echo(f"    Netzbetreiber: {len(vnbs)}")
+        for vnb in vnbs[:3]:
+            click.echo(f"      - {vnb.get('name', 'N/A')}")
+        if len(vnbs) > 3:
+            click.echo(f"      ... und {len(vnbs) - 3} weitere")
 
 
 if __name__ == "__main__":

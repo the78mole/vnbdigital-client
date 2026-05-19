@@ -23,6 +23,41 @@ class Region:
 
 
 @dataclass
+class Postcode:
+    """A postal code area."""
+
+    id: str
+    name: str
+    code: str
+    bbox: Optional[List[float]] = None
+    layer_url: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+
+@dataclass
+class SearchResult:
+    """A search result from vnb_search query.
+
+    Attributes:
+        id: Internal vnbdigital ID.
+        title: Main title/name of the result.
+        subtitle: Subtitle or additional information.
+        logo_url: URL of the logo image.
+        url: URL link to the resource.
+        type: Type of the result (e.g., "postcode", "vnb", "region").
+        raw: The full raw API response dict.
+    """
+
+    id: str
+    title: str
+    subtitle: str = ""
+    logo_url: Optional[str] = None
+    url: Optional[str] = None
+    type: str = ""
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+
+@dataclass
 class Operator:
     """Information about a grid operator (Verteilnetzbetreiber).
 
@@ -138,6 +173,116 @@ query ($id: ID!) {
   }
 }
 """
+
+SEARCH_POSTCODE_QUERY = """
+query ($code: String!) {
+  vnb_postcodes(code: $code) {
+    _id
+    name
+    code
+    bbox
+    layerUrl
+  }
+}
+"""
+
+VNB_SEARCH_QUERY = """
+query ($searchTerm: String!) {
+  vnb_search(searchTerm: $searchTerm) {
+    _id
+    title
+    subtitle
+    logo {
+      url
+    }
+    url
+    type
+  }
+}
+"""
+
+DETAIL_QUERY = """
+fragment vnb_Region on vnb_Region {
+  _id
+  name
+  logo {
+    url
+  }
+  bbox
+  layerUrl
+  slug
+  vnbs {
+    _id
+  }
+}
+
+fragment vnb_VNB on vnb_VNB {
+  _id
+  name
+  logo {
+    url
+  }
+  services {
+    type {
+      name
+      type
+    }
+    activated
+  }
+  bbox
+  layerUrl
+  types
+  voltageTypes
+}
+
+query (
+  $communityId: ID
+  $coordinates: String
+  $postcodeId: ID
+  $filter: vnb_FilterInput
+  $withCommunity: Boolean = false
+  $withCoordinates: Boolean = false
+  $withPostcode: Boolean = false
+) {
+  vnb_coordinates(coordinates: $coordinates) @include(if: $withCoordinates) {
+    geometry
+    regions(filter: $filter) {
+      ...vnb_Region
+    }
+    vnbs(filter: $filter) {
+      ...vnb_VNB
+    }
+  }
+  vnb_community(id: $communityId) @include(if: $withCommunity) {
+    _id
+    name
+    bbox
+    layerUrl
+    regions(filter: $filter) {
+      ...vnb_Region
+    }
+    vnbs(filter: $filter) {
+      ...vnb_VNB
+    }
+  }
+  vnb_postcode(id: $postcodeId) @include(if: $withPostcode) {
+    _id
+    name
+    code
+    bbox
+    layerUrl
+    regions(filter: $filter) {
+      ...vnb_Region
+    }
+    vnbs(filter: $filter) {
+      ...vnb_VNB
+    }
+  }
+}
+"""
+
+# Keep old name as alias for backward compatibility
+SEARCH_BY_POSTCODE_QUERY = DETAIL_QUERY
 
 
 class VNBDigitalClient:
@@ -291,3 +436,154 @@ class VNBDigitalClient:
         for oid in operator_ids:
             results[oid] = self.get_operator(oid)
         return results
+
+    def search(self, search_term: str) -> List[SearchResult]:
+        """
+        Search vnbdigital.de using the unified search API.
+
+        This uses the same search endpoint as the vnbdigital.de website,
+        which can find postcodes, operators, regions, and other entities.
+
+        Args:
+            search_term: The search term (e.g. postal code, operator name, etc.).
+
+        Returns:
+            List of :class:`SearchResult` objects matching the search.
+
+        Example::
+
+            client = VNBDigitalClient()
+            results = client.search("90158")
+            for result in results:
+                print(f"{result.type}: {result.title}")
+        """
+        data = self._execute(VNB_SEARCH_QUERY, variables={"searchTerm": search_term})
+        search_results = data.get("vnb_search", [])
+
+        results = []
+        for item in search_results:
+            results.append(
+                SearchResult(
+                    id=item["_id"],
+                    title=item.get("title", ""),
+                    subtitle=item.get("subtitle", ""),
+                    logo_url=item.get("logo", {}).get("url") if item.get("logo") else None,
+                    url=item.get("url"),
+                    type=item.get("type", ""),
+                    raw=item,
+                )
+            )
+        return results
+
+    def search_postcode(self, postcode: str) -> List[Postcode]:
+        """
+        Search for postal code areas by their code.
+
+        Args:
+            postcode: The postal code to search for (e.g. "90158").
+
+        Returns:
+            List of :class:`Postcode` objects matching the search.
+        """
+        data = self._execute(SEARCH_POSTCODE_QUERY, variables={"code": postcode})
+        postcodes_data = data.get("vnb_postcodes", [])
+
+        results = []
+        for pc in postcodes_data:
+            results.append(
+                Postcode(
+                    id=pc["_id"],
+                    name=pc.get("name", ""),
+                    code=pc.get("code", ""),
+                    bbox=pc.get("bbox"),
+                    layer_url=pc.get("layerUrl"),
+                    raw=pc,
+                )
+            )
+        return results
+
+    def search_by_postcode(
+        self,
+        postcode_id: str,
+        only_nap: bool = False,
+        voltage_types: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Search for network operators by postal code ID.
+
+        Args:
+            postcode_id: The internal postal code ID (from :meth:`search_postcode`
+                or a ``POSTCODE`` result from :meth:`search`).
+            only_nap: Filter for network access points only.
+            voltage_types: List of voltage types to filter
+                (default: ``["Niederspannung", "Mittelspannung"]``).
+
+        Returns:
+            Dict containing postcode info, regions, and vnbs (network operators).
+        """
+        if voltage_types is None:
+            voltage_types = ["Niederspannung", "Mittelspannung"]
+
+        variables = {
+            "postcodeId": postcode_id,
+            "withPostcode": True,
+            "filter": {
+                "onlyNap": only_nap,
+                "voltageTypes": voltage_types,
+                "withRegions": True,
+            },
+        }
+
+        data = self._execute(DETAIL_QUERY, variables=variables)
+        result: Dict[str, Any] = data.get("vnb_postcode", {})
+        return result
+
+    def search_by_coordinates(
+        self,
+        coordinates: str,
+        only_nap: bool = False,
+        voltage_types: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Search for network operators by geographic coordinates.
+
+        This uses the same API call as the vnbdigital.de website when a user
+        selects a ``LOCATION`` search result (e.g. a street address or district).
+
+        Args:
+            coordinates: Latitude/longitude string as returned in the search result
+                URL, e.g. ``"49.550954,11.110085"`` (``"lat,lon"`` format).
+            only_nap: Filter for network access points only.
+            voltage_types: List of voltage types to filter
+                (default: ``["Niederspannung", "Mittelspannung"]``).
+
+        Returns:
+            Dict with keys ``geometry``, ``regions``, and ``vnbs``.
+
+        Example::
+
+            client = VNBDigitalClient()
+            results = client.search("91058 Erlangen - Bruck")
+            location = next(r for r in results if r.type == "LOCATION")
+            # Extract coordinates from URL, e.g. "/overview?coordinates=49.56,10.99"
+            coords = location.url.split("coordinates=")[1].split("&")[0]
+            detail = client.search_by_coordinates(coords)
+            for vnb in detail.get("vnbs", []):
+                print(vnb["name"])
+        """
+        if voltage_types is None:
+            voltage_types = ["Niederspannung", "Mittelspannung"]
+
+        variables = {
+            "coordinates": coordinates,
+            "withCoordinates": True,
+            "filter": {
+                "onlyNap": only_nap,
+                "voltageTypes": voltage_types,
+                "withRegions": True,
+            },
+        }
+
+        data = self._execute(DETAIL_QUERY, variables=variables)
+        result: Dict[str, Any] = data.get("vnb_coordinates", {})
+        return result

@@ -6,7 +6,9 @@ A Python client library and CLI tool for accessing vnbdigital.de grid operator (
 
 - Simple Python API for vnbdigital.de grid operator data
 - Command-line interface (CLI) for quick lookups
-- Typed dataclasses (`Operator`, `Region`) for structured results
+- Unified search API matching the vnbdigital.de website (search for postcodes, operators, regions)
+- Direct postcode-based and coordinate-based network operator search
+- Typed dataclasses (`Operator`, `Region`, `Postcode`, `SearchResult`) for structured results
 - Batch lookups for multiple operators
 - Built with modern Python tooling (uv, pyproject.toml)
 - Dev container support for easy development
@@ -71,6 +73,26 @@ for oid, op in results.items():
         print(f"[{oid}] {op.name}")
     else:
         print(f"[{oid}] not found")
+
+# Unified search (same API as vnbdigital.de website)
+# Search for postal codes, operators, regions, locations, etc.
+search_results = client.search("91058")
+for result in search_results:
+    print(f"{result.type}: {result.title} - {result.subtitle}")
+
+# Get network operators for a POSTCODE result
+postcode_hit = next(r for r in search_results if r.type == "POSTCODE")
+detail = client.search_by_postcode(postcode_hit.id)
+for vnb in detail.get("vnbs", []):
+    print(f"  - {vnb['name']}")
+
+# Get network operators for a LOCATION result (coordinates lookup)
+location_hit = next(r for r in search_results if r.type == "LOCATION")
+# Extract coordinates from URL: /overview?coordinates=lat,lon&searchType=LOCATION
+coords = location_hit.url.split("coordinates=")[1].split("&")[0]
+detail = client.search_by_coordinates(coords)
+for vnb in detail.get("vnbs", []):
+    print(f"  - {vnb['name']}")
 ```
 
 ### Command-Line Interface
@@ -89,6 +111,26 @@ vnbdigital operator 179 --format json
 
 # Batch lookup
 vnbdigital batch 179 180 181
+
+# Unified search (same as vnbdigital.de website)
+# Search for postal codes, operators, regions, etc.
+vnbdigital search 90158
+vnbdigital search "Stadtwerke"
+
+# Search with details for postcode and location results
+vnbdigital search 90158 --details
+
+# Search with JSON output
+vnbdigital search 90158 --format json
+
+# Look up network operators by geographic coordinates (lat,lon)
+vnbdigital coordinates "49.5510,11.1101"
+
+# Coordinates with JSON output
+vnbdigital coordinates "49.5510,11.1101" --format json
+
+# Coordinates with custom voltage filter
+vnbdigital coordinates "49.5510,11.1101" --voltage Niederspannung
 
 # Override API URL via environment variable
 export VNBDIGITAL_API_URL="https://www.vnbdigital.de/gateway/graphql"
