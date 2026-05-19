@@ -300,7 +300,57 @@ class TestVNBDigitalClient:
         assert results[1].type == "vnb"
 
     @patch("vnbdigital_client.client.requests.post")
-    def test_search_no_results(self, mock_post: MagicMock) -> None:
+    def test_search_by_coordinates(self, mock_post: MagicMock) -> None:
+        """Test search_by_coordinates returns operators for a coordinate pair."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "data": {
+                "vnb_coordinates": {
+                    "geometry": "POINT(11.0 49.5)",
+                    "regions": [
+                        {
+                            "_id": "r1",
+                            "name": "Bayern",
+                            "logo": None,
+                            "bbox": [10.0, 49.0, 12.0, 50.0],
+                            "layerUrl": "https://www.vnbdigital.de/geoserver/region_r1/wms",
+                            "slug": "bayern",
+                            "vnbs": [{"_id": "179"}],
+                        }
+                    ],
+                    "vnbs": [
+                        {
+                            "_id": "179",
+                            "name": "N-ERGIE Netz GmbH",
+                            "logo": None,
+                            "services": [],
+                            "bbox": [10.9, 49.5, 11.1, 49.6],
+                            "layerUrl": "https://www.vnbdigital.de/geoserver/vnb_179/wms",
+                            "types": ["Strom"],
+                            "voltageTypes": ["Niederspannung", "Mittelspannung"],
+                        }
+                    ],
+                }
+            }
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        client = VNBDigitalClient()
+        result = client.search_by_coordinates("49.550954,11.110085")
+
+        assert result["geometry"] == "POINT(11.0 49.5)"
+        assert len(result["regions"]) == 1
+        assert result["regions"][0]["name"] == "Bayern"
+        assert len(result["vnbs"]) == 1
+        assert result["vnbs"][0]["name"] == "N-ERGIE Netz GmbH"
+        assert result["vnbs"][0]["types"] == ["Strom"]
+
+        # Verify the query was called with coordinates + withCoordinates=True
+        call_kwargs = mock_post.call_args
+        sent_payload = call_kwargs[1]["json"]
+        assert sent_payload["variables"]["coordinates"] == "49.550954,11.110085"
+        assert sent_payload["variables"]["withCoordinates"] is True
         """Test search returns empty list when no results found."""
         mock_response = MagicMock()
         mock_response.json.return_value = {"data": {"vnb_search": []}}

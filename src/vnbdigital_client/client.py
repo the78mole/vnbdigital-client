@@ -201,7 +201,7 @@ query ($searchTerm: String!) {
 }
 """
 
-SEARCH_BY_POSTCODE_QUERY = """
+DETAIL_QUERY = """
 fragment vnb_Region on vnb_Region {
   _id
   name
@@ -236,10 +236,35 @@ fragment vnb_VNB on vnb_VNB {
 }
 
 query (
+  $communityId: ID
+  $coordinates: String
   $postcodeId: ID
   $filter: vnb_FilterInput
+  $withCommunity: Boolean = false
+  $withCoordinates: Boolean = false
   $withPostcode: Boolean = false
 ) {
+  vnb_coordinates(coordinates: $coordinates) @include(if: $withCoordinates) {
+    geometry
+    regions(filter: $filter) {
+      ...vnb_Region
+    }
+    vnbs(filter: $filter) {
+      ...vnb_VNB
+    }
+  }
+  vnb_community(id: $communityId) @include(if: $withCommunity) {
+    _id
+    name
+    bbox
+    layerUrl
+    regions(filter: $filter) {
+      ...vnb_Region
+    }
+    vnbs(filter: $filter) {
+      ...vnb_VNB
+    }
+  }
   vnb_postcode(id: $postcodeId) @include(if: $withPostcode) {
     _id
     name
@@ -255,6 +280,9 @@ query (
   }
 }
 """
+
+# Keep old name as alias for backward compatibility
+SEARCH_BY_POSTCODE_QUERY = DETAIL_QUERY
 
 
 class VNBDigitalClient:
@@ -484,9 +512,11 @@ class VNBDigitalClient:
         Search for network operators by postal code ID.
 
         Args:
-            postcode_id: The internal postal code ID (from :meth:`search_postcode`).
+            postcode_id: The internal postal code ID (from :meth:`search_postcode`
+                or a ``POSTCODE`` result from :meth:`search`).
             only_nap: Filter for network access points only.
-            voltage_types: List of voltage types to filter (e.g. ["Niederspannung", "Mittelspannung"]).
+            voltage_types: List of voltage types to filter
+                (default: ``["Niederspannung", "Mittelspannung"]``).
 
         Returns:
             Dict containing postcode info, regions, and vnbs (network operators).
@@ -504,6 +534,56 @@ class VNBDigitalClient:
             },
         }
 
-        data = self._execute(SEARCH_BY_POSTCODE_QUERY, variables=variables)
+        data = self._execute(DETAIL_QUERY, variables=variables)
         result: Dict[str, Any] = data.get("vnb_postcode", {})
+        return result
+
+    def search_by_coordinates(
+        self,
+        coordinates: str,
+        only_nap: bool = False,
+        voltage_types: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Search for network operators by geographic coordinates.
+
+        This uses the same API call as the vnbdigital.de website when a user
+        selects a ``LOCATION`` search result (e.g. a street address or district).
+
+        Args:
+            coordinates: Latitude/longitude string as returned in the search result
+                URL, e.g. ``"49.550954,11.110085"`` (``"lat,lon"`` format).
+            only_nap: Filter for network access points only.
+            voltage_types: List of voltage types to filter
+                (default: ``["Niederspannung", "Mittelspannung"]``).
+
+        Returns:
+            Dict with keys ``geometry``, ``regions``, and ``vnbs``.
+
+        Example::
+
+            client = VNBDigitalClient()
+            results = client.search("91058 Erlangen - Bruck")
+            location = next(r for r in results if r.type == "LOCATION")
+            # Extract coordinates from URL, e.g. "/overview?coordinates=49.56,10.99"
+            coords = location.url.split("coordinates=")[1].split("&")[0]
+            detail = client.search_by_coordinates(coords)
+            for vnb in detail.get("vnbs", []):
+                print(vnb["name"])
+        """
+        if voltage_types is None:
+            voltage_types = ["Niederspannung", "Mittelspannung"]
+
+        variables = {
+            "coordinates": coordinates,
+            "withCoordinates": True,
+            "filter": {
+                "onlyNap": only_nap,
+                "voltageTypes": voltage_types,
+                "withRegions": True,
+            },
+        }
+
+        data = self._execute(DETAIL_QUERY, variables=variables)
+        result: Dict[str, Any] = data.get("vnb_coordinates", {})
         return result

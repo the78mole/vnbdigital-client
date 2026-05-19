@@ -197,6 +197,55 @@ class TestCLI:
         assert "No results found" in result.output
 
     @patch("vnbdigital_client.cli.VNBDigitalClient")
+    def test_search_command_details_location(self, mock_client_class: MagicMock) -> None:
+        """Test --details flag calls search_by_coordinates for LOCATION results."""
+        from vnbdigital_client.client import SearchResult
+
+        mock_results = [
+            SearchResult(
+                id="DEGAC00000062876",
+                title="91058 Erlangen - Bruck",
+                subtitle="Erlangen, Bayern",
+                type="LOCATION",
+                url="/overview?coordinates=49.569764,10.99452&searchType=LOCATION",
+                raw={},
+            ),
+        ]
+        mock_detail = {
+            "geometry": "POINT(10.99 49.57)",
+            "regions": [],
+            "vnbs": [
+                {"name": "N-ERGIE Netz GmbH"},
+            ],
+        }
+
+        mock_client = MagicMock()
+        mock_client.search.return_value = mock_results
+        mock_client.search_by_coordinates.return_value = mock_detail
+        mock_client_class.return_value = mock_client
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["search", "91058 Erlangen - Bruck", "--details"])
+
+        assert result.exit_code == 0
+        assert "Netzbetreiber: 1" in result.output
+        assert "N-ERGIE Netz GmbH" in result.output
+        mock_client.search_by_coordinates.assert_called_once_with("49.569764,10.99452")
+
+    def test_extract_coordinates(self) -> None:
+        """Test coordinate extraction from result URLs."""
+        from vnbdigital_client.cli import _extract_coordinates
+
+        url = "/overview?coordinates=49.569764,10.99452&searchType=LOCATION"
+        assert _extract_coordinates(url) == "49.569764,10.99452"
+
+        # No coordinates param
+        assert _extract_coordinates("/overview?postcodeId=abc") is None
+
+        # Invalid URL
+        assert _extract_coordinates("") is None
+
+    @patch("vnbdigital_client.cli.VNBDigitalClient")
     def test_search_command_details(self, mock_client_class: MagicMock) -> None:
         """Test search command --details flag triggers search_by_postcode for POSTCODE results."""
         from vnbdigital_client.client import SearchResult

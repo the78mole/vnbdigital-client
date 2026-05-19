@@ -8,6 +8,7 @@ from the command line.
 import json
 import sys
 from typing import Optional
+from urllib.parse import parse_qs, urlparse
 
 import click
 
@@ -228,26 +229,60 @@ def search(ctx: click.Context, search_term: str, output_format: str, details: bo
                 if result.url:
                     click.echo(f"    URL: {result.url}")
 
-                # If it's a postcode and --details flag is set, fetch detailed info
-                if details and result.type.upper() == "POSTCODE":
-                    try:
-                        detail_result = client.search_by_postcode(result.id)
-                        vnbs = detail_result.get("vnbs", [])
-                        if vnbs:
-                            click.echo(f"    Netzbetreiber: {len(vnbs)}")
-                            for vnb in vnbs[:3]:  # Show first 3
-                                click.echo(f"      - {vnb.get('name', 'N/A')}")
-                            if len(vnbs) > 3:
-                                click.echo(f"      ... und {len(vnbs) - 3} weitere")
-                    except Exception:
-                        # Silently skip details fetch on error (optional feature)
-                        pass
+                if details:
+                    _print_details(client, result.type, result.id, result.url)
 
                 click.echo()
 
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
+
+
+def _print_details(
+    client: VNBDigitalClient,
+    result_type: str,
+    result_id: str,
+    result_url: Optional[str],
+) -> None:
+    """Fetch and print VNB details for a single search result."""
+    try:
+        if result_type.upper() == "POSTCODE":
+            detail = client.search_by_postcode(result_id)
+            _print_vnb_summary(detail.get("vnbs", []))
+        elif result_type.upper() == "LOCATION" and result_url:
+            coords = _extract_coordinates(result_url)
+            if coords:
+                detail = client.search_by_coordinates(coords)
+                _print_vnb_summary(detail.get("vnbs", []))
+    except Exception:
+        # Silently skip details fetch on error (optional feature)
+        pass
+
+
+def _extract_coordinates(url: str) -> Optional[str]:
+    """Extract the coordinates query param from a result URL.
+
+    E.g. ``/overview?coordinates=49.56,10.99&searchType=LOCATION``
+    → ``"49.56,10.99"``
+    """
+    try:
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        coords_list = params.get("coordinates")
+        return coords_list[0] if coords_list else None
+    except Exception:
+        return None
+
+
+def _print_vnb_summary(vnbs: list) -> None:
+    """Print a short summary of network operators."""
+    if vnbs:
+        click.echo(f"    Netzbetreiber: {len(vnbs)}")
+        for vnb in vnbs[:3]:
+            click.echo(f"      - {vnb.get('name', 'N/A')}")
+        if len(vnbs) > 3:
+            click.echo(f"      ... und {len(vnbs) - 3} weitere")
 
 
 if __name__ == "__main__":

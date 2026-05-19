@@ -75,24 +75,24 @@ for oid, op in results.items():
         print(f"[{oid}] not found")
 
 # Unified search (same API as vnbdigital.de website)
-# Search for postal codes, operators, regions, etc.
-search_results = client.search("90158")
+# Search for postal codes, operators, regions, locations, etc.
+search_results = client.search("91058")
 for result in search_results:
     print(f"{result.type}: {result.title} - {result.subtitle}")
 
-# Alternative: Direct postcode search (legacy method)
-postcodes = client.search_postcode("90158")
-if postcodes:
-    pc = postcodes[0]
-    print(f"Found postcode: {pc.code} - {pc.name}")
-    
-    # Get operators in this postcode area
-    result = client.search_by_postcode(pc.id)
-    print(f"\nNetzbetreiber in {result['code']}:")
-    for vnb in result.get("vnbs", []):
-        print(f"  - {vnb['name']}")
-        if vnb.get("voltageTypes"):
-            print(f"    Spannungsebenen: {', '.join(vnb['voltageTypes'])}")
+# Get network operators for a POSTCODE result
+postcode_hit = next(r for r in search_results if r.type == "POSTCODE")
+detail = client.search_by_postcode(postcode_hit.id)
+for vnb in detail.get("vnbs", []):
+    print(f"  - {vnb['name']}")
+
+# Get network operators for a LOCATION result (coordinates lookup)
+location_hit = next(r for r in search_results if r.type == "LOCATION")
+# Extract coordinates from URL: /overview?coordinates=lat,lon&searchType=LOCATION
+coords = location_hit.url.split("coordinates=")[1].split("&")[0]
+detail = client.search_by_coordinates(coords)
+for vnb in detail.get("vnbs", []):
+    print(f"  - {vnb['name']}")
 ```
 
 ### Command-Line Interface
