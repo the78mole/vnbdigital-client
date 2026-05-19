@@ -10,7 +10,7 @@ grid operators (Verteilnetzbetreiber) by their BDEW code.
 
 from dataclasses import dataclass, field
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import requests
 
@@ -622,11 +622,13 @@ def _bdew_fetch_all_companies(
         timeout=timeout,
     )
     resp.raise_for_status()
-    return resp.json()["Records"]
+    return cast(List[Dict[str, Any]], resp.json()["Records"])
 
 
 def _bdew_fetch_market_functions(
-    session: requests.Session, company_id: int, timeout: int,
+    session: requests.Session,
+    company_id: int,
+    timeout: int,
     detail_url: str = _BDEW_DETAIL_URL,
 ) -> List[Dict[str, Any]]:
     resp = session.post(
@@ -639,7 +641,7 @@ def _bdew_fetch_market_functions(
     data = resp.json()
     if data.get("Result") != "OK":
         return []
-    return data.get("Records", [])
+    return cast(List[Dict[str, Any]], data.get("Records", []))
 
 
 def _bdew_build_mf(record: Dict[str, Any]) -> Dict[str, Any]:
@@ -656,14 +658,15 @@ def _bdew_parse_detail_html(html: str) -> Dict[str, Any]:
 
     def _get(label: str) -> str:
         import re as _re
+
         m = _re.search(
-            rf'<label>{_re.escape(label)}:</label>.*?<(?:div|span)[^>]*>(.*?)</(?:div|span)>',
+            rf"<label>{_re.escape(label)}:</label>.*?<(?:div|span)[^>]*>(.*?)</(?:div|span)>",
             html,
             _re.DOTALL,
         )
         if not m:
             return ""
-        return _re.sub(r'<[^>]+>', '', m.group(1)).strip()
+        return _re.sub(r"<[^>]+>", "", m.group(1)).strip()
 
     return {
         "street": _get("Stra\u00dfe und Hausnummer"),

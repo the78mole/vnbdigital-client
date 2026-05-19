@@ -338,7 +338,11 @@ class TestCLI:
     def test_coordinates_command_no_vnbs(self, mock_client_class: MagicMock) -> None:
         """Test coordinates command when no network operators are found."""
         mock_client = MagicMock()
-        mock_client.search_by_coordinates.return_value = {"geometry": None, "regions": [], "vnbs": []}
+        mock_client.search_by_coordinates.return_value = {
+            "geometry": None,
+            "regions": [],
+            "vnbs": [],
+        }
         mock_client_class.return_value = mock_client
 
         runner = CliRunner()

@@ -39,7 +39,7 @@ def main() -> None:
 
             # If it's a postcode result, we can get more details
             if result.type == "postcode":
-                print(f"\n  Getting detailed information for postcode...")
+                print("\n  Getting detailed information for postcode...")
                 try:
                     details = client.search_by_postcode(result.id)
                     vnbs = details.get("vnbs", [])
