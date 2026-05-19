@@ -13,6 +13,11 @@ from urllib.parse import parse_qs, urlparse
 import click
 
 from vnbdigital_client import VNBDigitalClient
+from vnbdigital_client.client import (
+    lookup_bdew_by_company_code,
+    lookup_bdew_by_market_code,
+    lookup_bdew_market_function_detail,
+)
 
 
 @click.group()
@@ -24,7 +29,10 @@ def main(ctx: click.Context, api_url: Optional[str]) -> None:
 
     Operators are identified by their BDEW code or vnbdigital ID.
 
-    Set VNBDIGITAL_API_URL to override the default endpoint.
+    \b
+    Environment variables:
+      VNBDIGITAL_API_URL   Override the vnbdigital.de GraphQL endpoint
+      BDEW_LOOKUP_URL      Override the bdew-codes.de base URL (used by: bdew)
     """
     ctx.ensure_object(dict)
     ctx.obj["client"] = VNBDigitalClient(api_url=api_url)
@@ -557,6 +565,97 @@ def msp(ctx: click.Context, location: str, output_format: str, json_flag: bool) 
     try:
         vnbs = _resolve_operators(client, location, "Mittelspannung")
         _print_voltage_result(vnbs, location, "Mittelspannung", output_format)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command()
+@click.argument("query")
+@click.option("--json", "-j", "json_flag", is_flag=True, help="JSON output.")
+@click.option("--details", "-d", "details_flag", is_flag=True, help="Fetch address and contact details for each market function.")
+@click.option("--bdew-url", envvar="BDEW_LOOKUP_URL", default=None, help="Base URL for bdew-codes.de (default: https://bdew-codes.de).")
+@click.pass_context
+def bdew(ctx: click.Context, query: str, json_flag: bool, details_flag: bool, bdew_url: Optional[str]) -> None:
+    """
+    Look up a BDEW company or market function by ID.
+
+    QUERY is either a company code (6-7 digits, e.g. 660188) or a 13-digit
+    BDEW market function code (e.g. 9903445000000).
+
+    Company code returns all market functions; market function code returns
+    only the one matching entry.
+
+    \b
+    Options:
+      -j, --json     JSON output
+      -d, --details  Fetch address and contact details for each market function
+      --bdew-url     Override bdew-codes.de base URL (env: BDEW_LOOKUP_URL)
+
+    Examples:
+
+    \b
+        vnbdigital bdew 660188
+        vnbdigital bdew 9903445000000
+        vnbdigital bdew 660188 --details
+        vnbdigital bdew 660188 -j
+    """
+    q = query.strip()
+
+    if not q.isdigit():
+        click.echo(f"Error: '{q}' is not a valid numeric BDEW identifier.", err=True)
+        sys.exit(2)
+
+    try:
+        if len(q) == 13:
+            click.echo(f"Suche BDEW-Code {q} …", err=True)
+            result = lookup_bdew_by_market_code(q, base_url=bdew_url)
+        elif len(q) > 13:
+            click.echo(f"Error: '{q}' has more than 13 digits.", err=True)
+            sys.exit(2)
+        else:
+            click.echo(f"Suche Unternehmen {q} …", err=True)
+            result = lookup_bdew_by_company_code(int(q), base_url=bdew_url)
+
+        if result is None:
+            click.echo("Nicht gefunden.", err=True)
+            sys.exit(1)
+
+        if details_flag:
+            for mf in result["market_functions"]:
+                mf["details"] = lookup_bdew_market_function_detail(mf["id"], base_url=bdew_url)
+
+        if json_flag:
+            click.echo(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            click.echo(f"Unternehmen : {result['name']}")
+            click.echo(f"Code        : {result['code']}")
+            mfs = result["market_functions"]
+            if not mfs:
+                click.echo("Marktfunktionen: (keine)")
+            else:
+                click.echo(f"Marktfunktionen ({len(mfs)}):")
+                for mf in mfs:
+                    contact = f"  – {mf['contact']}" if mf["contact"] else ""
+                    click.echo(f"  {mf['bdew_code']}  {mf['function']}{contact}")
+                    if details_flag and "details" in mf:
+                        d = mf["details"]
+                        addr = f"{d['street']}, {d['zip']} {d['city']}".strip(", ")
+                        if addr:
+                            click.echo(f"    Adresse : {addr}")
+                        if d["website"]:
+                            click.echo(f"    Website : {d['website']}")
+                        name_parts = " ".join(filter(None, [d["first_name"], d["last_name"]]))
+                        if name_parts:
+                            sal = f" ({d['salutation']})" if d["salutation"] else ""
+                            click.echo(f"    Kontakt : {name_parts}{sal}")
+                        if d["phone"]:
+                            click.echo(f"    Tel     : {d['phone']}")
+                        if d["fax"]:
+                            click.echo(f"    Fax     : {d['fax']}")
+                        if d["email"]:
+                            click.echo(f"    E-Mail  : {d['email']}")
+
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)

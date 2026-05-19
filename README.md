@@ -10,6 +10,7 @@ A Python client library and CLI tool for accessing vnbdigital.de grid operator (
 - Direct postcode-based and coordinate-based network operator search
 - Typed dataclasses (`Operator`, `Region`, `Postcode`, `SearchResult`) for structured results
 - Batch lookups for multiple operators
+- BDEW company and market function lookup via [bdew-codes.de](https://bdew-codes.de) (address, contact details)
 - Built with modern Python tooling (uv, pyproject.toml)
 - Dev container support for easy development
 - Comprehensive test coverage
@@ -93,6 +94,23 @@ coords = location_hit.url.split("coordinates=")[1].split("&")[0]
 detail = client.search_by_coordinates(coords)
 for vnb in detail.get("vnbs", []):
     print(f"  - {vnb['name']}")
+
+# BDEW lookup by company code (6–7 digits) — returns all market functions
+from vnbdigital_client import lookup_bdew_by_company_code, lookup_bdew_by_market_code, lookup_bdew_market_function_detail
+
+result = lookup_bdew_by_company_code(660188)
+if result:
+    print(f"{result['name']} ({result['code']})")
+    for mf in result["market_functions"]:
+        print(f"  {mf['bdew_code']}  {mf['function']}  – {mf['contact']}")
+        # Optionally fetch full address and contact details:
+        detail = lookup_bdew_market_function_detail(mf["id"])
+        print(f"    {detail['zip']} {detail['city']}, Tel: {detail['phone']}")
+
+# BDEW lookup by 13-digit market function code — returns only the matching entry
+result = lookup_bdew_by_market_code("9903445000000")
+if result:
+    print(result)
 ```
 
 ### Command-Line Interface
@@ -131,6 +149,24 @@ vnbdigital coordinates "49.5510,11.1101" --format json
 
 # Coordinates with custom voltage filter
 vnbdigital coordinates "49.5510,11.1101" --voltage Niederspannung
+
+# BDEW company lookup by 6–7-digit company code
+vnbdigital bdew 660188
+
+# BDEW lookup by 13-digit market function code
+vnbdigital bdew 9903445000000
+
+# With full address and contact details per market function
+vnbdigital bdew 660188 --details
+vnbdigital bdew 9903445000000 --details
+
+# BDEW output as JSON (combinable with --details)
+vnbdigital bdew 660188 --json
+vnbdigital bdew 660188 --details --json
+
+# Override bdew-codes.de base URL via environment variable
+export BDEW_LOOKUP_URL="https://bdew-codes.de"
+vnbdigital bdew 660188
 
 # Override API URL via environment variable
 export VNBDIGITAL_API_URL="https://www.vnbdigital.de/gateway/graphql"
@@ -210,6 +246,7 @@ vnbdigital-client/
 ### Environment Variables
 
 - `VNBDIGITAL_API_URL`: GraphQL endpoint URL (default: https://www.vnbdigital.de/gateway/graphql)
+- `BDEW_LOOKUP_URL`: Base URL for bdew-codes.de lookups (default: https://bdew-codes.de)
 
 ### Renovate
 

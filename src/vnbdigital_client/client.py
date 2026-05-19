@@ -9,6 +9,7 @@ grid operators (Verteilnetzbetreiber) by their BDEW code.
 """
 
 from dataclasses import dataclass, field
+import os
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -587,3 +588,201 @@ class VNBDigitalClient:
         data = self._execute(DETAIL_QUERY, variables=variables)
         result: Dict[str, Any] = data.get("vnb_coordinates", {})
         return result
+
+
+# ---------------------------------------------------------------------------
+# BDEW code lookup (bdew-codes.de API, independent of VNBDigitalClient)
+# ---------------------------------------------------------------------------
+
+_BDEW_BASE_URL = "https://bdew-codes.de"
+_BDEW_LIST_URL = f"{_BDEW_BASE_URL}/Codenumbers/BDEWCodes/GetCompanyList"
+_BDEW_DETAIL_URL = f"{_BDEW_BASE_URL}/Codenumbers/BDEWCodes/GetBdewCodeListOfCompany"
+_BDEW_DETAIL_INFO_URL = f"{_BDEW_BASE_URL}/Codenumbers/BDEWCodes/BdewCodeDetailInfo"
+
+
+def _bdew_session() -> requests.Session:
+    s = requests.Session()
+    s.headers.update({"Content-Type": "application/x-www-form-urlencoded"})
+    return s
+
+
+def _bdew_fetch_all_companies(
+    session: requests.Session, timeout: int, list_url: str = _BDEW_LIST_URL
+) -> List[Dict[str, Any]]:
+    probe = session.post(
+        list_url,
+        data={"jtStartIndex": "0", "jtPageSize": "1", "jtSorting": "Company ASC"},
+        timeout=timeout,
+    )
+    probe.raise_for_status()
+    total = probe.json()["TotalRecordCount"]
+    resp = session.post(
+        list_url,
+        data={"jtStartIndex": "0", "jtPageSize": str(total), "jtSorting": "Company ASC"},
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    return resp.json()["Records"]
+
+
+def _bdew_fetch_market_functions(
+    session: requests.Session, company_id: int, timeout: int,
+    detail_url: str = _BDEW_DETAIL_URL,
+) -> List[Dict[str, Any]]:
+    resp = session.post(
+        detail_url,
+        params={"companyId": company_id},
+        data={"jtStartIndex": "0", "jtPageSize": "200"},
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    if data.get("Result") != "OK":
+        return []
+    return data.get("Records", [])
+
+
+def _bdew_build_mf(record: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "id": record["Id"],
+        "bdew_code": record["BdewCode"],
+        "function": record["MarketFunctionName"],
+        "contact": record.get("ContactName", ""),
+    }
+
+
+def _bdew_parse_detail_html(html: str) -> Dict[str, Any]:
+    """Extract fields from the BdewCodeDetailInfo HTML fragment."""
+
+    def _get(label: str) -> str:
+        import re as _re
+        m = _re.search(
+            rf'<label>{_re.escape(label)}:</label>.*?<(?:div|span)[^>]*>(.*?)</(?:div|span)>',
+            html,
+            _re.DOTALL,
+        )
+        if not m:
+            return ""
+        return _re.sub(r'<[^>]+>', '', m.group(1)).strip()
+
+    return {
+        "street": _get("Stra\u00dfe und Hausnummer"),
+        "zip": _get("PLZ"),
+        "city": _get("Stadt"),
+        "website": _get("Internetseite"),
+        "salutation": _get("Anrede"),
+        "first_name": _get("Vorname"),
+        "last_name": _get("Nachname"),
+        "phone": _get("Telefonnummer"),
+        "fax": _get("Faxnummer"),
+        "email": _get("E-Mail-Adresse"),
+    }
+
+
+def lookup_bdew_market_function_detail(
+    bdew_id: int, timeout: int = 30, base_url: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Fetch address and contact details for a single BDEW market function.
+
+    Args:
+        bdew_id: The internal ``Id`` of the market function record (from
+            ``lookup_bdew_by_company_code`` / ``lookup_bdew_by_market_code``).
+        timeout: HTTP timeout in seconds.
+        base_url: Base URL for bdew-codes.de (overrides ``BDEW_LOOKUP_URL`` env var).
+
+    Returns:
+        Dict with keys ``street``, ``zip``, ``city``, ``website``,
+        ``salutation``, ``first_name``, ``last_name``, ``phone``, ``fax``,
+        ``email``.
+    """
+    _base = (base_url or os.environ.get("BDEW_LOOKUP_URL", _BDEW_BASE_URL)).rstrip("/")
+    detail_info_url = f"{_base}/Codenumbers/BDEWCodes/BdewCodeDetailInfo"
+    sess = _bdew_session()
+    sess.headers.update({"Content-Type": "application/json; charset=UTF-8"})
+    resp = sess.post(
+        detail_info_url,
+        params={"bdewId": ""},
+        json={"bdewId": bdew_id},
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    return _bdew_parse_detail_html(resp.text)
+
+
+def lookup_bdew_by_company_code(
+    company_uid: int, timeout: int = 30, base_url: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Look up a BDEW company by its CompanyUId (6-7-digit company code).
+
+    Fetches the complete company list from bdew-codes.de, finds the entry with
+    the matching ``CompanyUId``, and returns the company together with all its
+    market functions.
+
+    Args:
+        company_uid: The 6-7-digit BDEW company code (``CompanyUId``), e.g. ``660188``.
+        timeout: HTTP timeout in seconds.
+        base_url: Base URL for bdew-codes.de (overrides ``BDEW_LOOKUP_URL`` env var).
+
+    Returns:
+        ``{"code": int, "name": str, "market_functions": [...]}`` or ``None``.
+    """
+    _base = (base_url or os.environ.get("BDEW_LOOKUP_URL", _BDEW_BASE_URL)).rstrip("/")
+    list_url = f"{_base}/Codenumbers/BDEWCodes/GetCompanyList"
+    detail_url = f"{_base}/Codenumbers/BDEWCodes/GetBdewCodeListOfCompany"
+    sess = _bdew_session()
+    companies = _bdew_fetch_all_companies(sess, timeout, list_url)
+    company = next((c for c in companies if c["CompanyUId"] == company_uid), None)
+    if company is None:
+        return None
+    mf_records = _bdew_fetch_market_functions(sess, company["Id"], timeout, detail_url)
+    return {
+        "code": company["CompanyUId"],
+        "name": company["Company"].strip(),
+        "market_functions": [_bdew_build_mf(r) for r in mf_records],
+    }
+
+
+def lookup_bdew_by_market_code(
+    bdew_code: str, timeout: int = 30, base_url: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Look up a BDEW company by a specific 13-digit market function code.
+
+    Uses the ``filter`` parameter of the GetCompanyList endpoint to find the
+    company directly, then returns the company with **only** the matching
+    market function entry.
+
+    Args:
+        bdew_code: The 13-digit BDEW market function code, e.g. ``"9903445000000"``.
+        timeout: HTTP timeout in seconds.
+        base_url: Base URL for bdew-codes.de (overrides ``BDEW_LOOKUP_URL`` env var).
+
+    Returns:
+        ``{"code": int, "name": str, "market_functions": [<matched entry>]}`` or ``None``.
+    """
+    _base = (base_url or os.environ.get("BDEW_LOOKUP_URL", _BDEW_BASE_URL)).rstrip("/")
+    list_url = f"{_base}/Codenumbers/BDEWCodes/GetCompanyList"
+    detail_url = f"{_base}/Codenumbers/BDEWCodes/GetBdewCodeListOfCompany"
+    sess = _bdew_session()
+    resp = sess.post(
+        list_url,
+        params={"jtStartIndex": "0", "jtPageSize": "500"},
+        data={"filter": bdew_code},
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    if data.get("Result") != "OK" or not data.get("Records"):
+        return None
+    company = data["Records"][0]
+    mf_records = _bdew_fetch_market_functions(sess, company["Id"], timeout, detail_url)
+    match = next((r for r in mf_records if r["BdewCode"] == bdew_code), None)
+    if match is None:
+        return None
+    return {
+        "code": company["CompanyUId"],
+        "name": company["Company"].strip(),
+        "market_functions": [_bdew_build_mf(match)],
+    }

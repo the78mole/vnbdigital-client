@@ -144,3 +144,4 @@ cython_debug/
 
 # uv
 .uv/
+bdew_full.json
