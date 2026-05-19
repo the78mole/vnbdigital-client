@@ -176,6 +176,7 @@ class TestCLI:
 
         mock_client = MagicMock()
         mock_client.search.return_value = mock_results
+        mock_client.search_by_postcode.return_value = {"vnbs": [{"name": "Stadtwerke Erlangen"}]}
         mock_client_class.return_value = mock_client
 
         runner = CliRunner()
