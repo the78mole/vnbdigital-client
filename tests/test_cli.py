@@ -1,5 +1,6 @@
 """Tests for CLI module."""
 
+import json
 from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
@@ -281,3 +282,67 @@ class TestCLI:
         assert "Netzbetreiber: 2" in result.output
         assert "Stadtwerke Erlangen" in result.output
         mock_client.search_by_postcode.assert_called_once_with("soEbJkxB68ZM6Yvdt")
+
+    @patch("vnbdigital_client.cli.VNBDigitalClient")
+    def test_coordinates_command_table(self, mock_client_class: MagicMock) -> None:
+        """Test coordinates command with table output."""
+        mock_detail = {
+            "geometry": {"type": "Point", "coordinates": [11.1101, 49.5510]},
+            "regions": [{"name": "Bayern"}],
+            "vnbs": [
+                {
+                    "name": "N-ERGIE Netz GmbH",
+                    "types": ["Strom"],
+                    "voltageTypes": ["Niederspannung", "Mittelspannung"],
+                },
+            ],
+        }
+        mock_client = MagicMock()
+        mock_client.search_by_coordinates.return_value = mock_detail
+        mock_client_class.return_value = mock_client
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["coordinates", "49.5510,11.1101"])
+
+        assert result.exit_code == 0
+        assert "49.5510,11.1101" in result.output
+        assert "Bayern" in result.output
+        assert "N-ERGIE Netz GmbH" in result.output
+        assert "Strom" in result.output
+        mock_client.search_by_coordinates.assert_called_once_with(
+            "49.5510,11.1101",
+            only_nap=False,
+            voltage_types=["Niederspannung", "Mittelspannung"],
+        )
+
+    @patch("vnbdigital_client.cli.VNBDigitalClient")
+    def test_coordinates_command_json(self, mock_client_class: MagicMock) -> None:
+        """Test coordinates command with JSON output."""
+        mock_detail = {
+            "geometry": {"type": "Point", "coordinates": [11.1101, 49.5510]},
+            "regions": [],
+            "vnbs": [{"name": "N-ERGIE Netz GmbH", "types": ["Strom"], "voltageTypes": []}],
+        }
+        mock_client = MagicMock()
+        mock_client.search_by_coordinates.return_value = mock_detail
+        mock_client_class.return_value = mock_client
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["coordinates", "49.5510,11.1101", "--format", "json"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["vnbs"][0]["name"] == "N-ERGIE Netz GmbH"
+
+    @patch("vnbdigital_client.cli.VNBDigitalClient")
+    def test_coordinates_command_no_vnbs(self, mock_client_class: MagicMock) -> None:
+        """Test coordinates command when no network operators are found."""
+        mock_client = MagicMock()
+        mock_client.search_by_coordinates.return_value = {"geometry": None, "regions": [], "vnbs": []}
+        mock_client_class.return_value = mock_client
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["coordinates", "0.0,0.0"])
+
+        assert result.exit_code == 0
+        assert "Keine Netzbetreiber gefunden" in result.output

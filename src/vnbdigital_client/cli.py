@@ -239,6 +239,92 @@ def search(ctx: click.Context, search_term: str, output_format: str, details: bo
         sys.exit(1)
 
 
+@main.command(name="coordinates")
+@click.argument("coords")
+@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table")
+@click.option(
+    "--voltage",
+    "voltage_types",
+    multiple=True,
+    default=("Niederspannung", "Mittelspannung"),
+    show_default=True,
+    help="Voltage type filter (can be repeated)",
+)
+@click.option("--nap", is_flag=True, help="Filter for network access points only")
+@click.pass_context
+def coordinates(
+    ctx: click.Context,
+    coords: str,
+    output_format: str,
+    voltage_types: tuple,
+    nap: bool,
+) -> None:
+    """
+    Look up network operators for a geographic coordinate.
+
+    COORDS must be a "lat,lon" string, e.g. "49.5510,11.1101".
+
+    The coordinate format matches what the vnbdigital.de website uses
+    internally for location-based searches (LOCATION results).
+
+    Examples:
+
+    \b
+        vnbdigital coordinates "49.5510,11.1101"
+        vnbdigital coordinates "49.5510,11.1101" --format json
+        vnbdigital coordinates "49.5510,11.1101" --voltage Niederspannung
+    """
+    client: VNBDigitalClient = ctx.obj["client"]
+
+    try:
+        result = client.search_by_coordinates(
+            coords,
+            only_nap=nap,
+            voltage_types=list(voltage_types),
+        )
+
+        if output_format == "json":
+            click.echo(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            vnbs = result.get("vnbs", [])
+            regions = result.get("regions", [])
+            geometry = result.get("geometry")
+
+            click.echo(f"\n{'=' * 60}")
+            click.echo(f"  Koordinaten: {coords}")
+            click.echo(f"{'=' * 60}")
+
+            if geometry:
+                geo_coords = geometry.get("coordinates", [])
+                if geo_coords:
+                    click.echo(f"  Punkt:       lon={geo_coords[0]}, lat={geo_coords[1]}")
+
+            if regions:
+                region_names = ", ".join(r.get("name", "?") for r in regions)
+                click.echo(f"  Regionen:    {region_names}")
+
+            if not vnbs:
+                click.echo("  Keine Netzbetreiber gefunden.")
+            else:
+                click.echo(f"\n  Netzbetreiber ({len(vnbs)}):")
+                for vnb in vnbs:
+                    name = vnb.get("name", "N/A")
+                    types = ", ".join(vnb.get("types", []))
+                    voltage = ", ".join(vnb.get("voltageTypes", []))
+                    line = f"    - {name}"
+                    if types:
+                        line += f"  [{types}]"
+                    if voltage:
+                        line += f"  ({voltage})"
+                    click.echo(line)
+
+            click.echo()
+
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
 def _print_details(
     client: VNBDigitalClient,
     result_type: str,

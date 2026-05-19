@@ -7,7 +7,7 @@ A Python client library and CLI tool for accessing vnbdigital.de grid operator (
 - Simple Python API for vnbdigital.de grid operator data
 - Command-line interface (CLI) for quick lookups
 - Unified search API matching the vnbdigital.de website (search for postcodes, operators, regions)
-- Direct postcode-based network operator search
+- Direct postcode-based and coordinate-based network operator search
 - Typed dataclasses (`Operator`, `Region`, `Postcode`, `SearchResult`) for structured results
 - Batch lookups for multiple operators
 - Built with modern Python tooling (uv, pyproject.toml)
@@ -117,11 +117,20 @@ vnbdigital batch 179 180 181
 vnbdigital search 90158
 vnbdigital search "Stadtwerke"
 
-# Search with details for postcode results
+# Search with details for postcode and location results
 vnbdigital search 90158 --details
 
 # Search with JSON output
 vnbdigital search 90158 --format json
+
+# Look up network operators by geographic coordinates (lat,lon)
+vnbdigital coordinates "49.5510,11.1101"
+
+# Coordinates with JSON output
+vnbdigital coordinates "49.5510,11.1101" --format json
+
+# Coordinates with custom voltage filter
+vnbdigital coordinates "49.5510,11.1101" --voltage Niederspannung
 
 # Override API URL via environment variable
 export VNBDIGITAL_API_URL="https://www.vnbdigital.de/gateway/graphql"
