@@ -32,18 +32,29 @@ def main(ctx: click.Context, api_url: Optional[str]) -> None:
 
 @main.command()
 @click.argument("operator_id")
-@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table")
+@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table", help="Output format: 'table' (default) or 'json'.")
+@click.option("--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json).")
 @click.pass_context
-def operator(ctx: click.Context, operator_id: str, output_format: str) -> None:
+def operator(ctx: click.Context, operator_id: str, output_format: str, json_flag: bool) -> None:
     """
     Get basic information for a grid operator.
 
     OPERATOR_ID is the BDEW code or vnbdigital ID (e.g. "179").
 
-    Example:
+    \b
+    Options:
+      --format [json|table]  Output format (default: table)
+      -j, --json             JSON output (shorthand for --format json)
+
+    Examples:
+
+    \b
         vnbdigital operator 179
+        vnbdigital operator 179 -j
     """
     client: VNBDigitalClient = ctx.obj["client"]
+    if json_flag:
+        output_format = "json"
 
     try:
         op = client.get_operator(operator_id)
@@ -80,18 +91,29 @@ def operator(ctx: click.Context, operator_id: str, output_format: str) -> None:
 
 @main.command()
 @click.argument("operator_id")
-@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table")
+@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table", help="Output format: 'table' (default) or 'json'.")
+@click.option("--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json).")
 @click.pass_context
-def details(ctx: click.Context, operator_id: str, output_format: str) -> None:
+def details(ctx: click.Context, operator_id: str, output_format: str, json_flag: bool) -> None:
     """
     Get detailed information for a grid operator.
 
     Returns additional fields like description, types, logo, services, etc.
 
-    Example:
+    \b
+    Options:
+      --format [json|table]  Output format (default: table)
+      -j, --json             JSON output (shorthand for --format json)
+
+    Examples:
+
+    \b
         vnbdigital details 179
+        vnbdigital details 179 -j
     """
     client: VNBDigitalClient = ctx.obj["client"]
+    if json_flag:
+        output_format = "json"
 
     try:
         op = client.get_operator_details(operator_id)
@@ -151,16 +173,27 @@ def details(ctx: click.Context, operator_id: str, output_format: str) -> None:
 
 @main.command(name="batch")
 @click.argument("operator_ids", nargs=-1, required=True)
-@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table")
+@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table", help="Output format: 'table' (default) or 'json'.")
+@click.option("--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json).")
 @click.pass_context
-def batch_lookup(ctx: click.Context, operator_ids: tuple, output_format: str) -> None:
+def batch_lookup(ctx: click.Context, operator_ids: tuple, output_format: str, json_flag: bool) -> None:
     """
     Look up multiple operators at once.
 
-    Example:
+    \b
+    Options:
+      --format [json|table]  Output format (default: table)
+      -j, --json             JSON output (shorthand for --format json)
+
+    Examples:
+
+    \b
         vnbdigital batch 179 180 181
+        vnbdigital batch 179 180 181 -j
     """
     client: VNBDigitalClient = ctx.obj["client"]
+    if json_flag:
+        output_format = "json"
 
     try:
         results = client.get_operators(list(operator_ids))
@@ -187,23 +220,39 @@ def batch_lookup(ctx: click.Context, operator_ids: tuple, output_format: str) ->
 
 @main.command()
 @click.argument("search_term")
-@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table")
-@click.option("--details", is_flag=True, help="Show detailed info for postcode results")
+@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table", help="Output format: 'table' (default) or 'json'.")
+@click.option("--details", "-d", is_flag=True, help="Resolve and show operators for each result (auto-enabled for 5-digit postcodes).")
+@click.option("--json", "-j", "json_flag", is_flag=True, help="JSON output with full operator details (implies --details).")
 @click.pass_context
-def search(ctx: click.Context, search_term: str, output_format: str, details: bool) -> None:
+def search(ctx: click.Context, search_term: str, output_format: str, details: bool, json_flag: bool) -> None:
     """
     Search vnbdigital.de for operators, postcodes, regions, etc.
 
     SEARCH_TERM can be a postal code, operator name, or other search query.
+    For 5-digit postcodes, operator details are resolved automatically.
 
-    This uses the same unified search API as the vnbdigital.de website.
+    \b
+    Options:
+      --format [json|table]  Output format (default: table)
+      -d, --details          Resolve operators for each result
+      -j, --json             JSON output with full operator details
 
-    Example:
-        vnbdigital search 90158
-        vnbdigital search 90158 --details
+    Examples:
+
+    \b
+        vnbdigital search 97816
+        vnbdigital search 97816 -j
         vnbdigital search "Stadtwerke"
+        vnbdigital search "Stadtwerke" --details
     """
     client: VNBDigitalClient = ctx.obj["client"]
+    if json_flag:
+        output_format = "json"
+        details = True
+
+    # Automatically resolve operators for pure postcode searches (5-digit number)
+    if not details and search_term.isdigit() and len(search_term) == 5:
+        details = True
 
     try:
         # Use unified search API
@@ -214,7 +263,25 @@ def search(ctx: click.Context, search_term: str, output_format: str, details: bo
             sys.exit(1)
 
         if output_format == "json":
-            json_out = [r.raw for r in results]
+            json_out = []
+            for r in results:
+                entry = dict(r.raw)
+                if details:
+                    if r.type.upper() == "POSTCODE":
+                        try:
+                            detail = client.search_by_postcode(r.id)
+                            entry["vnbs"] = detail.get("vnbs", [])
+                        except Exception:
+                            pass
+                    elif r.type.upper() == "LOCATION" and r.url:
+                        coords = _extract_coordinates(r.url)
+                        if coords:
+                            try:
+                                detail = client.search_by_coordinates(coords)
+                                entry["vnbs"] = detail.get("vnbs", [])
+                            except Exception:
+                                pass
+                json_out.append(entry)
             click.echo(json.dumps(json_out, indent=2, ensure_ascii=False))
         else:
             click.echo(f"\n{'=' * 60}")
@@ -241,16 +308,17 @@ def search(ctx: click.Context, search_term: str, output_format: str, details: bo
 
 @main.command(name="coordinates")
 @click.argument("coords")
-@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table")
+@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table", help="Output format: 'table' (default) or 'json'.")
 @click.option(
     "--voltage",
     "voltage_types",
     multiple=True,
     default=("Niederspannung", "Mittelspannung"),
     show_default=True,
-    help="Voltage type filter (can be repeated)",
+    help="Voltage type filter (can be repeated). E.g. --voltage Niederspannung --voltage Mittelspannung",
 )
-@click.option("--nap", is_flag=True, help="Filter for network access points only")
+@click.option("--nap", is_flag=True, help="Filter for network access points (NAP) only.")
+@click.option("--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json).")
 @click.pass_context
 def coordinates(
     ctx: click.Context,
@@ -258,23 +326,32 @@ def coordinates(
     output_format: str,
     voltage_types: tuple,
     nap: bool,
+    json_flag: bool,
 ) -> None:
     """
     Look up network operators for a geographic coordinate.
 
     COORDS must be a "lat,lon" string, e.g. "49.5510,11.1101".
 
-    The coordinate format matches what the vnbdigital.de website uses
-    internally for location-based searches (LOCATION results).
+    \b
+    Options:
+      --format [json|table]  Output format (default: table)
+      --voltage TEXT         Voltage type filter, repeatable
+                             (default: Niederspannung, Mittelspannung)
+      --nap                  Filter for network access points only
+      -j, --json             JSON output (shorthand for --format json)
 
     Examples:
 
     \b
         vnbdigital coordinates "49.5510,11.1101"
-        vnbdigital coordinates "49.5510,11.1101" --format json
+        vnbdigital coordinates "49.5510,11.1101" -j
         vnbdigital coordinates "49.5510,11.1101" --voltage Niederspannung
+        vnbdigital coordinates "49.5510,11.1101" --nap
     """
     client: VNBDigitalClient = ctx.obj["client"]
+    if json_flag:
+        output_format = "json"
 
     try:
         result = client.search_by_coordinates(
@@ -366,7 +443,8 @@ def _print_vnb_summary(vnbs: list) -> None:
     if vnbs:
         click.echo(f"    Netzbetreiber: {len(vnbs)}")
         for vnb in vnbs[:3]:
-            click.echo(f"      - {vnb.get('name', 'N/A')}")
+            vnb_id = vnb.get('_id', 'N/A')
+            click.echo(f"      - [{vnb_id}] {vnb.get('name', 'N/A')}")
         if len(vnbs) > 3:
             click.echo(f"      ... und {len(vnbs) - 3} weitere")
 
