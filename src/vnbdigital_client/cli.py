@@ -7,7 +7,7 @@ from the command line.
 
 import json
 import sys
-from typing import Optional
+from typing import Optional, cast
 from urllib.parse import parse_qs, urlparse
 
 import click
@@ -40,8 +40,16 @@ def main(ctx: click.Context, api_url: Optional[str]) -> None:
 
 @main.command()
 @click.argument("operator_id")
-@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table", help="Output format: 'table' (default) or 'json'.")
-@click.option("--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json).")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["json", "table"]),
+    default="table",
+    help="Output format: 'table' (default) or 'json'.",
+)
+@click.option(
+    "--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json)."
+)
 @click.pass_context
 def operator(ctx: click.Context, operator_id: str, output_format: str, json_flag: bool) -> None:
     """
@@ -99,8 +107,16 @@ def operator(ctx: click.Context, operator_id: str, output_format: str, json_flag
 
 @main.command()
 @click.argument("operator_id")
-@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table", help="Output format: 'table' (default) or 'json'.")
-@click.option("--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json).")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["json", "table"]),
+    default="table",
+    help="Output format: 'table' (default) or 'json'.",
+)
+@click.option(
+    "--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json)."
+)
 @click.pass_context
 def details(ctx: click.Context, operator_id: str, output_format: str, json_flag: bool) -> None:
     """
@@ -181,10 +197,20 @@ def details(ctx: click.Context, operator_id: str, output_format: str, json_flag:
 
 @main.command(name="batch")
 @click.argument("operator_ids", nargs=-1, required=True)
-@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table", help="Output format: 'table' (default) or 'json'.")
-@click.option("--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json).")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["json", "table"]),
+    default="table",
+    help="Output format: 'table' (default) or 'json'.",
+)
+@click.option(
+    "--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json)."
+)
 @click.pass_context
-def batch_lookup(ctx: click.Context, operator_ids: tuple, output_format: str, json_flag: bool) -> None:
+def batch_lookup(
+    ctx: click.Context, operator_ids: tuple, output_format: str, json_flag: bool
+) -> None:
     """
     Look up multiple operators at once.
 
@@ -228,11 +254,30 @@ def batch_lookup(ctx: click.Context, operator_ids: tuple, output_format: str, js
 
 @main.command()
 @click.argument("search_term")
-@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table", help="Output format: 'table' (default) or 'json'.")
-@click.option("--details", "-d", is_flag=True, help="Resolve and show operators for each result (auto-enabled for 5-digit postcodes).")
-@click.option("--json", "-j", "json_flag", is_flag=True, help="JSON output with full operator details (implies --details).")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["json", "table"]),
+    default="table",
+    help="Output format: 'table' (default) or 'json'.",
+)
+@click.option(
+    "--details",
+    "-d",
+    is_flag=True,
+    help="Resolve and show operators for each result (auto-enabled for 5-digit postcodes).",
+)
+@click.option(
+    "--json",
+    "-j",
+    "json_flag",
+    is_flag=True,
+    help="JSON output with full operator details (implies --details).",
+)
 @click.pass_context
-def search(ctx: click.Context, search_term: str, output_format: str, details: bool, json_flag: bool) -> None:
+def search(
+    ctx: click.Context, search_term: str, output_format: str, details: bool, json_flag: bool
+) -> None:
     """
     Search vnbdigital.de for operators, postcodes, regions, etc.
 
@@ -316,7 +361,13 @@ def search(ctx: click.Context, search_term: str, output_format: str, details: bo
 
 @main.command(name="coordinates")
 @click.argument("coords")
-@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table", help="Output format: 'table' (default) or 'json'.")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["json", "table"]),
+    default="table",
+    help="Output format: 'table' (default) or 'json'.",
+)
 @click.option(
     "--voltage",
     "voltage_types",
@@ -326,7 +377,9 @@ def search(ctx: click.Context, search_term: str, output_format: str, details: bo
     help="Voltage type filter (can be repeated). E.g. --voltage Niederspannung --voltage Mittelspannung",
 )
 @click.option("--nap", is_flag=True, help="Filter for network access points (NAP) only.")
-@click.option("--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json).")
+@click.option(
+    "--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json)."
+)
 @click.pass_context
 def coordinates(
     ctx: click.Context,
@@ -451,7 +504,7 @@ def _print_vnb_summary(vnbs: list) -> None:
     if vnbs:
         click.echo(f"    Netzbetreiber: {len(vnbs)}")
         for vnb in vnbs[:3]:
-            vnb_id = vnb.get('_id', 'N/A')
+            vnb_id = vnb.get("_id", "N/A")
             click.echo(f"      - [{vnb_id}] {vnb.get('name', 'N/A')}")
         if len(vnbs) > 3:
             click.echo(f"      ... und {len(vnbs) - 3} weitere")
@@ -469,13 +522,15 @@ def _resolve_operators(client: VNBDigitalClient, location: str, voltage_type: st
         if not postcode_result:
             return []
         detail = client.search_by_postcode(postcode_result.id, voltage_types=[voltage_type])
-        return detail.get("vnbs", [])
+        return cast(list, detail.get("vnbs", []))
     else:
         detail = client.search_by_coordinates(location, voltage_types=[voltage_type])
-        return detail.get("vnbs", [])
+        return cast(list, detail.get("vnbs", []))
 
 
-def _print_voltage_result(vnbs: list, location: str, voltage_label: str, output_format: str) -> None:
+def _print_voltage_result(
+    vnbs: list, location: str, voltage_label: str, output_format: str
+) -> None:
     """Print operators for a voltage-specific lookup."""
     if output_format == "json":
         slim = [{"id": v.get("_id"), "name": v.get("name")} for v in vnbs]
@@ -504,8 +559,16 @@ def _print_voltage_result(vnbs: list, location: str, voltage_label: str, output_
 
 @main.command()
 @click.argument("location")
-@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table", help="Output format: 'table' (default) or 'json'.")
-@click.option("--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json).")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["json", "table"]),
+    default="table",
+    help="Output format: 'table' (default) or 'json'.",
+)
+@click.option(
+    "--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json)."
+)
 @click.pass_context
 def nsp(ctx: click.Context, location: str, output_format: str, json_flag: bool) -> None:
     """
@@ -538,8 +601,16 @@ def nsp(ctx: click.Context, location: str, output_format: str, json_flag: bool) 
 
 @main.command()
 @click.argument("location")
-@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table", help="Output format: 'table' (default) or 'json'.")
-@click.option("--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json).")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["json", "table"]),
+    default="table",
+    help="Output format: 'table' (default) or 'json'.",
+)
+@click.option(
+    "--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json)."
+)
 @click.pass_context
 def msp(ctx: click.Context, location: str, output_format: str, json_flag: bool) -> None:
     """
@@ -573,10 +644,23 @@ def msp(ctx: click.Context, location: str, output_format: str, json_flag: bool) 
 @main.command()
 @click.argument("query")
 @click.option("--json", "-j", "json_flag", is_flag=True, help="JSON output.")
-@click.option("--details", "-d", "details_flag", is_flag=True, help="Fetch address and contact details for each market function.")
-@click.option("--bdew-url", envvar="BDEW_LOOKUP_URL", default=None, help="Base URL for bdew-codes.de (default: https://bdew-codes.de).")
+@click.option(
+    "--details",
+    "-d",
+    "details_flag",
+    is_flag=True,
+    help="Fetch address and contact details for each market function.",
+)
+@click.option(
+    "--bdew-url",
+    envvar="BDEW_LOOKUP_URL",
+    default=None,
+    help="Base URL for bdew-codes.de (default: https://bdew-codes.de).",
+)
 @click.pass_context
-def bdew(ctx: click.Context, query: str, json_flag: bool, details_flag: bool, bdew_url: Optional[str]) -> None:
+def bdew(
+    ctx: click.Context, query: str, json_flag: bool, details_flag: bool, bdew_url: Optional[str]
+) -> None:
     """
     Look up a BDEW company or market function by ID.
 

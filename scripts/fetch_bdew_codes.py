@@ -19,6 +19,7 @@ import argparse
 import json
 import sys
 import threading
+from typing import cast
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
@@ -51,7 +52,7 @@ def fetch_all_companies(timeout: int = 30) -> list:
         timeout=timeout,
     )
     response.raise_for_status()
-    return response.json()["Records"]
+    return cast(list, response.json()["Records"])
 
 
 # Thread-local sessions so each worker has its own TCP connection pool.
@@ -61,7 +62,7 @@ _local = threading.local()
 def _session() -> requests.Session:
     if not hasattr(_local, "session"):
         _local.session = _new_session()
-    return _local.session
+    return cast(requests.Session, _local.session)
 
 
 def fetch_market_functions(company_id: int, timeout: int = 30) -> list:
@@ -76,7 +77,7 @@ def fetch_market_functions(company_id: int, timeout: int = 30) -> list:
     data = response.json()
     if data.get("Result") != "OK":
         return []
-    return data.get("Records", [])
+    return cast(list, data.get("Records", []))
 
 
 def build_entry(company: dict, market_functions: list) -> dict:
@@ -99,18 +100,21 @@ def main() -> None:
         description="Download BDEW company list with all market functions as JSON."
     )
     parser.add_argument(
-        "--output", "-o",
+        "--output",
+        "-o",
         default="-",
         help="Output file path. Use '-' for stdout (default).",
     )
     parser.add_argument(
-        "--workers", "-w",
+        "--workers",
+        "-w",
         type=int,
         default=15,
         help="Number of parallel HTTP workers (default: 15).",
     )
     parser.add_argument(
-        "--timeout", "-t",
+        "--timeout",
+        "-t",
         type=int,
         default=30,
         help="HTTP timeout in seconds (default: 30).",
