@@ -449,5 +449,118 @@ def _print_vnb_summary(vnbs: list) -> None:
             click.echo(f"      ... und {len(vnbs) - 3} weitere")
 
 
+def _resolve_operators(client: VNBDigitalClient, location: str, voltage_type: str) -> list:
+    """Resolve operators for a postcode or coordinate string.
+
+    If *location* is a 5-digit number it is treated as a German postal code;
+    otherwise it is treated as a ``"lat,lon"`` coordinate string.
+    """
+    if location.isdigit() and len(location) == 5:
+        results = client.search(location)
+        postcode_result = next((r for r in results if r.type.upper() == "POSTCODE"), None)
+        if not postcode_result:
+            return []
+        detail = client.search_by_postcode(postcode_result.id, voltage_types=[voltage_type])
+        return detail.get("vnbs", [])
+    else:
+        detail = client.search_by_coordinates(location, voltage_types=[voltage_type])
+        return detail.get("vnbs", [])
+
+
+def _print_voltage_result(vnbs: list, location: str, voltage_label: str, output_format: str) -> None:
+    """Print operators for a voltage-specific lookup."""
+    if output_format == "json":
+        slim = [{"id": v.get("_id"), "name": v.get("name")} for v in vnbs]
+        click.echo(json.dumps(slim, indent=2, ensure_ascii=False))
+        return
+
+    click.echo(f"\n{'=' * 60}")
+    click.echo(f"  {voltage_label} · {location}")
+    click.echo(f"{'=' * 60}")
+    if not vnbs:
+        click.echo("  Kein Netzbetreiber gefunden.")
+    else:
+        for vnb in vnbs:
+            vnb_id = vnb.get("_id", "N/A")
+            name = vnb.get("name", "N/A")
+            voltage = ", ".join(vnb.get("voltageTypes", []))
+            types = ", ".join(vnb.get("types", []))
+            line = f"  [{vnb_id}] {name}"
+            if types:
+                line += f"  [{types}]"
+            if voltage:
+                line += f"  ({voltage})"
+            click.echo(line)
+    click.echo()
+
+
+@main.command()
+@click.argument("location")
+@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table", help="Output format: 'table' (default) or 'json'.")
+@click.option("--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json).")
+@click.pass_context
+def nsp(ctx: click.Context, location: str, output_format: str, json_flag: bool) -> None:
+    """
+    Get Niederspannung (low voltage) operator for a postcode or coordinate.
+
+    LOCATION is either a 5-digit postal code or a "lat,lon" coordinate string.
+
+    \b
+    Options:
+      --format [json|table]  Output format (default: table)
+      -j, --json             JSON output (shorthand for --format json)
+
+    Examples:
+
+    \b
+        vnbdigital nsp 97816
+        vnbdigital nsp "49.998037,9.58033"
+        vnbdigital nsp 97816 -j
+    """
+    client: VNBDigitalClient = ctx.obj["client"]
+    if json_flag:
+        output_format = "json"
+    try:
+        vnbs = _resolve_operators(client, location, "Niederspannung")
+        _print_voltage_result(vnbs, location, "Niederspannung", output_format)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command()
+@click.argument("location")
+@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table", help="Output format: 'table' (default) or 'json'.")
+@click.option("--json", "-j", "json_flag", is_flag=True, help="JSON output (shorthand for --format json).")
+@click.pass_context
+def msp(ctx: click.Context, location: str, output_format: str, json_flag: bool) -> None:
+    """
+    Get Mittelspannung (medium voltage) operator for a postcode or coordinate.
+
+    LOCATION is either a 5-digit postal code or a "lat,lon" coordinate string.
+
+    \b
+    Options:
+      --format [json|table]  Output format (default: table)
+      -j, --json             JSON output (shorthand for --format json)
+
+    Examples:
+
+    \b
+        vnbdigital msp 97816
+        vnbdigital msp "49.998037,9.58033"
+        vnbdigital msp 97816 -j
+    """
+    client: VNBDigitalClient = ctx.obj["client"]
+    if json_flag:
+        output_format = "json"
+    try:
+        vnbs = _resolve_operators(client, location, "Mittelspannung")
+        _print_voltage_result(vnbs, location, "Mittelspannung", output_format)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     main()
