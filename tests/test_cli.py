@@ -130,16 +130,16 @@ class TestCLI:
                 id="soEbJkxB68ZM6Yvdt",
                 title="90158",
                 subtitle="Erlangen",
-                type="postcode",
-                url="/postcode/soEbJkxB68ZM6Yvdt",
+                type="POSTCODE",
+                url="/overview?postcodeId=soEbJkxB68ZM6Yvdt",
                 raw={},
             ),
             SearchResult(
                 id="vnb123",
                 title="Stadtwerke Erlangen",
                 subtitle="Strom, Gas",
-                type="vnb",
-                url="/vnb/vnb123",
+                type="LOCATION",
+                url="/overview?coordinates=49.5,11.0&searchType=LOCATION",
                 raw={},
             ),
         ]
@@ -155,8 +155,8 @@ class TestCLI:
         assert "90158" in result.output
         assert "Erlangen" in result.output
         assert "Stadtwerke Erlangen" in result.output
-        assert "postcode" in result.output
-        assert "vnb" in result.output
+        assert "POSTCODE" in result.output
+        assert "LOCATION" in result.output
 
     @patch("vnbdigital_client.cli.VNBDigitalClient")
     def test_search_command_json(self, mock_client_class: MagicMock) -> None:
@@ -195,3 +195,40 @@ class TestCLI:
 
         assert result.exit_code == 1
         assert "No results found" in result.output
+
+    @patch("vnbdigital_client.cli.VNBDigitalClient")
+    def test_search_command_details(self, mock_client_class: MagicMock) -> None:
+        """Test search command --details flag triggers search_by_postcode for POSTCODE results."""
+        from vnbdigital_client.client import SearchResult
+
+        mock_results = [
+            SearchResult(
+                id="soEbJkxB68ZM6Yvdt",
+                title="91058",
+                subtitle="Erlangen",
+                type="POSTCODE",  # uppercase as returned by real API
+                url="/overview?postcodeId=soEbJkxB68ZM6Yvdt",
+                raw={},
+            ),
+        ]
+        mock_detail = {
+            "_id": "soEbJkxB68ZM6Yvdt",
+            "code": "91058",
+            "vnbs": [
+                {"name": "Stadtwerke Erlangen"},
+                {"name": "N-ERGIE Netz GmbH"},
+            ],
+        }
+
+        mock_client = MagicMock()
+        mock_client.search.return_value = mock_results
+        mock_client.search_by_postcode.return_value = mock_detail
+        mock_client_class.return_value = mock_client
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["search", "91058", "--details"])
+
+        assert result.exit_code == 0
+        assert "Netzbetreiber: 2" in result.output
+        assert "Stadtwerke Erlangen" in result.output
+        mock_client.search_by_postcode.assert_called_once_with("soEbJkxB68ZM6Yvdt")

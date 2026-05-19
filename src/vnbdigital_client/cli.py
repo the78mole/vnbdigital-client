@@ -229,7 +229,7 @@ def search(ctx: click.Context, search_term: str, output_format: str, details: bo
                     click.echo(f"    URL: {result.url}")
 
                 # If it's a postcode and --details flag is set, fetch detailed info
-                if details and result.type == "postcode":
+                if details and result.type.upper() == "POSTCODE":
                     try:
                         detail_result = client.search_by_postcode(result.id)
                         vnbs = detail_result.get("vnbs", [])
