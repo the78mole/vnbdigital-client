@@ -1,5 +1,8 @@
 # vnbdigital-client
 
+[![PyPI](https://img.shields.io/pypi/v/vnbdigital-client)](https://pypi.org/project/vnbdigital-client/) [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/vnbdigital-client/) [![Publish](https://github.com/the78mole/vnbdigital-client/actions/workflows/publish.yml/badge.svg)](https://github.com/the78mole/vnbdigital-client/actions/workflows/publish.yml)
+[![GitHub issues](https://img.shields.io/github/issues/the78mole/vnbdigital-client)](https://github.com/the78mole/vnbdigital-client/issues) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
 A Python client library and CLI tool for accessing vnbdigital.de grid operator (Verteilnetzbetreiber) data. This package abstracts the GraphQL API and provides a simple, intuitive interface for looking up operators by their BDEW code.
 
 ## Features
