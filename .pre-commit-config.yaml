@@ -41,3 +41,12 @@ repos:
     rev: 0.36.1
     hooks:
       - id: check-github-workflows
+
+  - repo: local
+    hooks:
+      - id: sync-python-version-badge
+        name: Sync Python version badge (pyproject.toml → README)
+        entry: python scripts/sync_python_version_badge.py
+        language: python
+        pass_filenames: false
+        files: ^(pyproject\.toml|README\.md)$
