@@ -110,19 +110,21 @@ class Operator:
 OPERATOR_QUERY_BASIC = """
 query ($id: ID!) {
   vnb_vnb(id: $id) {
-    _id
-    name
-    address
-    postcode
-    city
-    phone
-    contact
-    website
-    layerUrl
-    bbox
-    regions {
+    ... on vnb_VNB {
       _id
       name
+      address
+      postcode
+      city
+      phone
+      contact
+      website
+      layerUrl
+      bbox
+      regions {
+        _id
+        name
+      }
     }
   }
 }
@@ -131,45 +133,47 @@ query ($id: ID!) {
 OPERATOR_QUERY_DETAILED = """
 query ($id: ID!) {
   vnb_vnb(id: $id) {
-    _id
-    name
-    types
-    image {
-      url
-    }
-    logo {
-      url
-    }
-    layerUrl
-    bbox
-    description
-    address
-    postcode
-    city
-    phone
-    contact
-    website
-    publicRequired
-    clicks
-    regions {
+    ... on vnb_VNB {
       _id
       name
-    }
-    services {
-      type {
-        _id
-        type
-        name
-        title
-        description
+      types
+      image {
+        url
       }
-      title
-    }
-    documents {
-      _id
-      name
-      type
-      url
+      logo {
+        url
+      }
+      layerUrl
+      bbox
+      description
+      address
+      postcode
+      city
+      phone
+      contact
+      website
+      publicRequired
+      clicks
+      regions {
+        _id
+        name
+      }
+      services {
+        type {
+          _id
+          type
+          name
+          title
+          description
+        }
+        title
+      }
+      documents {
+        _id
+        name
+        type
+        url
+      }
     }
   }
 }
